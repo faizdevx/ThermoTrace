@@ -35,8 +35,12 @@
   <img src="https://img.shields.io/badge/Celery-TaskQueue-37814A?logo=celery&logoColor=white">
   <img src="https://img.shields.io/badge/Docker-Containerization-2496ED?logo=docker&logoColor=white">
 </p>
-=======
-# India Industrial Intelligence Platform
+
+
+
+
+
+# India Industrial Intelligence Feature 
 
 A Web GIS application for exploring, filtering, and analysing industrial sites
 across India, built on top of the `industrial-data` geospatial pipeline.
@@ -474,4 +478,4 @@ python run_pipeline.py --state ALL --skip-government
 - **GeoJSON Export & Validation**: Serializes all master sites to `data/processed/<State>/master_industrial_sites.geojson` with strict RFC 7946 validation.
 - **Non-Destructive PostGIS Upsert**: Uses `merge_temporal_snapshots()` to update database records in-place without deleting existing rows.
 
->>>>>>> origin/auxiliary
+

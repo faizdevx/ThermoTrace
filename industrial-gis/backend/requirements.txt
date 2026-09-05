@@ -1,0 +1,13 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+python-dotenv==1.0.1
+SQLAlchemy==2.0.36
+psycopg2-binary==2.9.10
+GeoAlchemy2==0.16.0
+geopandas==1.0.1
+shapely==2.0.6
+pandas==2.2.3
+rapidfuzz==3.10.1
+pytest==8.3.4
+httpx==0.28.1

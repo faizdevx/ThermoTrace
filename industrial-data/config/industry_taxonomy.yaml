@@ -1,0 +1,415 @@
+# Industry Taxonomy Configuration
+# =================================
+# Maps raw industry type values into a controlled set of normalized categories.
+#
+# Structure
+# ---------
+# Each entry under `categories` defines a normalized category with:
+#   - code:    The normalized output value (uppercase, stable across refreshes)
+#   - label:   Human-readable label
+#   - aliases: List of raw strings that map to this category
+#             (case-insensitive, substring matching is NOT used — aliases must
+#              be complete values or close variations; use explicit entries)
+#
+# Fallback
+# --------
+# Values that match no alias are assigned the code from `fallback_category`.
+# Set `fallback_category: OTHER` (recommended) so unrecognized values are
+# preserved as OTHER rather than being silently NULL.
+#
+# OSM tags
+# --------
+# The `osm_tags` list under each category maps OSM tag values (e.g.
+# "landuse=industrial", "craft=pottery") to this category.  These are matched
+# against the `industrial_type` column produced by normalize_industrial_type().
+#
+# Extending this taxonomy
+# -----------------------
+# To add a new category:
+#   1. Add a new entry under `categories` with a unique `code`.
+#   2. Add `aliases` for all raw values you want mapped to it.
+#   3. Re-run the pipeline — normalization is applied at ingestion time.
+# Existing codes must NEVER be changed (they are written to the database).
+
+fallback_category: "OTHER"
+
+categories:
+
+  - code: TEXTILE
+    label: "Textile Manufacturing"
+    aliases:
+      - Textile Manufacturing
+      - Textiles
+      - Textile
+      - Garment Factory
+      - Garment Manufacturing
+      - Garments
+      - Apparel
+      - Apparel Manufacturing
+      - Clothing
+      - Weaving
+      - Spinning
+      - Knitting
+      - Dyeing and Printing
+      - Dyeing & Printing
+      - Bleaching
+      - Power Loom
+      - Handloom
+      - Hosiery
+      - Jute
+      - Jute Manufacturing
+      - Synthetic Fiber
+      - Synthetic Fibre
+      - Yarn
+    osm_tags:
+      - industrial=textile
+      - craft=weaving
+      - craft=dyeing
+      - industrial=fabric
+
+  - code: CHEMICAL
+    label: "Chemical Manufacturing"
+    aliases:
+      - Chemical
+      - Chemicals
+      - Chemical Manufacturing
+      - Chemical Industry
+      - Chemical Plant
+      - Specialty Chemicals
+      - Agrochemical
+      - Agrochemicals
+      - Pesticide
+      - Pesticides
+      - Fertilizer
+      - Fertilizers
+      - Paint
+      - Paints
+      - Dye
+      - Dyes
+      - Dyes and Chemicals
+      - Pharmaceutical
+      - Pharmaceuticals
+      - Drug Manufacturing
+      - Bulk Drug
+      - Formulation
+      - Plastic
+      - Plastics
+      - Polymer
+      - Polymers
+      - Rubber
+      - Petrochemical
+      - Petrochemicals
+      - Adhesive
+      - Adhesives
+      - Detergent
+      - Soap and Detergent
+    osm_tags:
+      - industrial=chemical
+      - industrial=pharmaceutical
+      - industrial=plastics
+      - industrial=rubber
+      - craft=pharmacy
+
+  - code: STEEL_METAL
+    label: "Steel and Metal Manufacturing"
+    aliases:
+      - Steel
+      - Steel Plant
+      - Steel Manufacturing
+      - Iron and Steel
+      - Iron & Steel
+      - Metal
+      - Metals
+      - Metal Manufacturing
+      - Ferrous
+      - Non-Ferrous
+      - Foundry
+      - Smelting
+      - Casting
+      - Forging
+      - Aluminium
+      - Aluminum
+      - Copper
+      - Zinc
+      - Wire Drawing
+      - Galvanizing
+      - Galvanisation
+      - Rolling Mill
+      - Stainless Steel
+    osm_tags:
+      - industrial=metal
+      - industrial=steel
+      - industrial=iron_and_steel
+      - craft=blacksmith
+      - craft=foundry
+
+  - code: FOOD_BEVERAGE
+    label: "Food and Beverage Processing"
+    aliases:
+      - Food
+      - Food Processing
+      - Food Manufacturing
+      - Food and Beverage
+      - Food & Beverage
+      - Beverage
+      - Beverages
+      - Dairy
+      - Dairy Processing
+      - Milk
+      - Sugar
+      - Sugar Mill
+      - Flour Mill
+      - Rice Mill
+      - Oil Mill
+      - Edible Oil
+      - Bakery
+      - Confectionery
+      - Meat Processing
+      - Fish Processing
+      - Sea Food
+      - Seafood
+      - Poultry
+      - Distillery
+      - Brewery
+      - Soft Drink
+      - Soft Drinks
+      - Mineral Water
+      - Tobacco
+      - Cigarette
+    osm_tags:
+      - industrial=food
+      - industrial=beverages
+      - craft=bakery
+      - craft=brewery
+      - craft=dairy
+      - craft=distillery
+      - craft=mill
+      - craft=confectionery
+
+  - code: PAPER_PULP
+    label: "Paper and Pulp Manufacturing"
+    aliases:
+      - Paper
+      - Paper Mill
+      - Pulp and Paper
+      - Pulp & Paper
+      - Newsprint
+      - Board
+      - Cardboard
+      - Packaging
+      - Kraft Paper
+    osm_tags:
+      - industrial=paper
+      - industrial=pulp
+
+  - code: CEMENT_CERAMIC
+    label: "Cement and Ceramic Manufacturing"
+    aliases:
+      - Cement
+      - Cement Plant
+      - Cement Manufacturing
+      - Clinker
+      - Ready Mix Concrete
+      - RMC
+      - Ceramic
+      - Ceramics
+      - Tiles
+      - Tile Manufacturing
+      - Sanitaryware
+      - Refractory
+      - Glass
+      - Glass Manufacturing
+      - Float Glass
+    osm_tags:
+      - industrial=cement
+      - industrial=ceramics
+      - industrial=glass
+
+  - code: ELECTRONICS
+    label: "Electronics and Electrical Equipment"
+    aliases:
+      - Electronics
+      - Electronic
+      - Electrical
+      - Electrical Equipment
+      - Semiconductor
+      - PCB
+      - Printed Circuit Board
+      - LED
+      - Solar Panel
+      - Solar Panels
+      - Solar Cell
+      - Battery
+      - Batteries
+      - Cable
+      - Cables
+      - Wire
+      - Motor
+      - Transformer
+      - Switchgear
+      - UPS
+      - Computer
+      - IT Hardware
+    osm_tags:
+      - industrial=electronics
+      - industrial=electrical
+
+  - code: AUTO_VEHICLE
+    label: "Automobile and Vehicle Manufacturing"
+    aliases:
+      - Automobile
+      - Automotive
+      - Vehicle
+      - Car Manufacturing
+      - Two Wheeler
+      - Two-Wheeler
+      - Motorcycle
+      - Tractor
+      - Truck
+      - Commercial Vehicle
+      - Auto Component
+      - Auto Parts
+      - Auto Ancillary
+    osm_tags:
+      - industrial=car
+      - industrial=vehicle
+
+  - code: ENGINEERING_MACHINERY
+    label: "Engineering and Machinery"
+    aliases:
+      - Engineering
+      - General Engineering
+      - Machine Tool
+      - Machinery
+      - Heavy Engineering
+      - Equipment Manufacturing
+      - Agricultural Equipment
+      - Agricultural Machinery
+      - Pump
+      - Compressor
+      - Valve
+      - Bearing
+      - Gear
+      - Hydraulic
+      - Pneumatic
+      - Industrial Equipment
+    osm_tags:
+      - industrial=machine_tools
+      - industrial=machinery
+      - craft=toolmaker
+
+  - code: MINING_QUARRYING
+    label: "Mining and Quarrying"
+    aliases:
+      - Mining
+      - Mine
+      - Quarry
+      - Quarrying
+      - Coal Mine
+      - Coal Mining
+      - Iron Ore
+      - Stone Quarry
+      - Marble
+      - Granite
+      - Sand Mining
+      - Lime Stone
+      - Limestone
+      - Mineral
+    osm_tags:
+      - man_made=works
+      - industrial=mine
+      - industrial=quarry
+
+  - code: POWER_ENERGY
+    label: "Power and Energy"
+    aliases:
+      - Power Plant
+      - Thermal Power
+      - Hydro Power
+      - Solar Power
+      - Wind Power
+      - Windmill
+      - Wind Farm
+      - Gas Power
+      - Gas Plant
+      - LNG
+      - Biogas
+      - Biomass Power
+      - Nuclear
+      - Captive Power
+      - Co-generation
+    osm_tags:
+      - man_made=works
+      - man_made=wastewater_plant
+      - man_made=water_works
+
+  - code: WOOD_FURNITURE
+    label: "Wood and Furniture Manufacturing"
+    aliases:
+      - Wood
+      - Timber
+      - Plywood
+      - MDF
+      - Furniture
+      - Furniture Manufacturing
+      - Sawmill
+      - Saw Mill
+    osm_tags:
+      - craft=carpenter
+      - craft=sawmill
+      - industrial=wood
+
+  - code: PRINTING_PUBLISHING
+    label: "Printing and Publishing"
+    aliases:
+      - Printing
+      - Printing Press
+      - Printing and Publishing
+      - Publishing
+      - Packaging Printing
+    osm_tags:
+      - craft=printer
+
+  - code: WASTE_RECYCLING
+    label: "Waste Management and Recycling"
+    aliases:
+      - Waste Management
+      - Waste Treatment
+      - Waste Processing
+      - Recycling
+      - Scrap
+      - Common Effluent
+      - CETP
+      - ETP
+      - STP
+      - Sewage Treatment
+    osm_tags:
+      - amenity=recycling
+      - man_made=wastewater_plant
+      - industrial=recycling
+
+  - code: COLD_STORAGE
+    label: "Cold Storage and Warehousing"
+    aliases:
+      - Cold Storage
+      - Warehouse
+      - Warehousing
+      - Logistics
+      - Distribution Center
+      - Distribution Centre
+    osm_tags:
+      - industrial=cold_storage
+      - industrial=warehouse
+
+  - code: UNKNOWN
+    label: "Unknown Industry Type"
+    aliases:
+      - Unknown
+      - N/A
+      - NA
+      - Not Applicable
+      - Not Specified
+      - Unclassified
+      - General Industries
+      - General
+      - Miscellaneous

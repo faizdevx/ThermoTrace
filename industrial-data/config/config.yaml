@@ -1,0 +1,228 @@
+project:
+  name: industrial-data
+
+crs:
+  storage: EPSG:4326
+  source_assumed: EPSG:4326
+
+database:
+  url_env: DATABASE_URL
+  echo: false
+
+logging:
+  level: INFO
+  file: logs/industrial-data.log
+
+boundaries:
+  source:
+    provider: geoboundaries
+    api_base_url: https://www.geoboundaries.org/api/current
+    dataset_type: gbOpen
+    country_iso3: IND
+    levels:
+      india:
+        level: ADM0
+        table: india_boundary
+        name_candidates:
+          - shapeName
+          - name
+          - NAME
+        administrative_code_candidates:
+          - shapeID
+          - GID_0
+          - gid_0
+          - ISO
+        source_id_candidates:
+          - shapeID
+          - GID_0
+          - gid_0
+          - ISO
+      states:
+        level: ADM1
+        table: states
+        name_candidates:
+          - shapeName
+          - name
+          - NAME_1
+        administrative_code_candidates:
+          - shapeID
+          - GID_1
+          - gid_1
+        source_id_candidates:
+          - shapeID
+          - GID_1
+          - gid_1
+      districts:
+        level: ADM2
+        table: districts
+        name_candidates:
+          - shapeName
+          - name
+          - NAME_2
+          - district
+        administrative_code_candidates:
+          - shapeID
+          - GID_2
+          - gid_2
+        source_id_candidates:
+          - shapeID
+          - GID_2
+          - gid_2
+
+validation:
+  allow_make_valid: true
+  reject_unrepairable: true
+  remove_exact_duplicates: true
+
+paths:
+  sql_dir: sql
+  exports_dir: exports
+
+data_quality:
+  report_file: exports/data_quality_report.json
+  india_bounds:
+    min_longitude: 68.0
+    max_longitude: 98.0
+    min_latitude: 6.0
+    max_latitude: 38.0
+  duplicate_cluster_distance_meters: 100
+  duplicate_cluster_name_similarity: 90
+  duplicate_cluster_industry_similarity: 85
+
+osm:
+  source:
+    provider: openstreetmap
+    overpass_url: https://overpass-api.de/api/interpreter
+    backup_overpass_urls:
+      - https://overpass.kumi.systems/api/interpreter
+    request_timeout_seconds: 180
+    retry_attempts: 3
+    retry_backoff_seconds: 2
+    query_pause_seconds: 1
+  tags:
+    landuse:
+      - industrial
+    industrial:
+      - "*"
+    building:
+      - industrial
+    craft:
+      - "*"
+    man_made:
+      - works
+      - storage_tank
+      - pipeline
+      - wastewater_plant
+      - water_works
+      - chimneys
+    amenity:
+      - recycling
+      - fuel
+  cleaning:
+    exact_duplicate_coordinate_precision: 6
+    probable_duplicate_distance_meters: 50
+    probable_duplicate_name_similarity: 88
+    probable_duplicate_industry_similarity: 80
+  output:
+    table: osm_industries
+
+government:
+  source:
+    provider: government
+    default_table_prefix: government_industries
+    default_output_crs: EPSG:4326
+  schema:
+    missing_values:
+      - ""
+      - null
+    unknown_values:
+      - unknown
+      - unk
+      - n/a
+      - na
+    not_applicable_values:
+      - not applicable
+      - n/a
+      - na
+    coordinate_candidates:
+      latitude:
+        - latitude
+        - lat
+        - y
+        - latitude_deg
+      longitude:
+        - longitude
+        - lon
+        - lng
+        - x
+        - longitude_deg
+      easting:
+        - easting
+        - utm_easting
+      northing:
+        - northing
+        - utm_northing
+    operational_status_candidates:
+      - operational_status
+      - status
+      - facility_status
+  cleaning:
+    exact_duplicate_coordinate_precision: 6
+
+matching:
+  source:
+    max_spatial_distance_meters: 1500
+    require_state_district_consistency: true
+    candidate_name_similarity_min: 70
+    candidate_address_similarity_min: 70
+    candidate_industry_similarity_min: 60
+  weights:
+    spatial: 0.4
+    name: 0.3
+    industry: 0.2
+    address: 0.1
+  thresholds:
+    automatic_match: 0.85
+    uncertain_match: 0.65
+  output:
+    master_table: industrial_sites
+    match_table: industrial_entity_matches
+
+# ---------------------------------------------------------------------------
+# Government data sources
+# ---------------------------------------------------------------------------
+# Each entry declares one government industrial dataset adapter.
+# The pipeline uses these to ingest real government data for matching.
+#
+# IMPORTANT:
+#   - No data files are included in this repository.
+#   - Set enabled: false for any source whose data file is not yet available.
+#   - The pipeline will honestly report unavailable sources and skip them.
+#   - See government/sources/example_source/README.md for instructions.
+#
+# Adapter types:
+#   csv_file  — local CSV, XLSX, GeoJSON, or GPKG file
+#
+# To add a real source:
+#   1. Obtain the dataset from the government authority.
+#   2. Place it at the configured `file` path.
+#   3. Set enabled: true.
+#   4. Run: python run_pipeline.py --state "Your State"
+# ---------------------------------------------------------------------------
+government_sources:
+  - id: example_source
+    adapter: csv_file
+    name: "Example Government Industrial Registry (Template)"
+    enabled: false          # Set true once you have placed a data file here
+    file: "government/sources/example_source/data.csv"
+    source_date: null       # Fill in the dataset publication date: "YYYY-MM-DD"
+    # Column mappings — use column names from YOUR data file (case-insensitive)
+    name_column: "FacilityName"
+    id_column: "RegistrationNumber"
+    type_column: "IndustryType"
+    state_column: "State"
+    district_column: "District"
+    address_column: "Address"
+    establishment_status_column: "Status"
+    establishment_date_column: "EstablishmentDate"
+    source_crs: "EPSG:4326"

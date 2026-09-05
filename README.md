@@ -1,5 +1,45 @@
-<<<<<<< HEAD
 # ThermoTrace
+
+<p align="center">
+    
+```text
+
+ _____ _                             _____                   
+|_   _| |__   ___ _ __ _ __ ___   __|_   _| __ __ _  ___ ___ 
+  | | | '_ \ / _ \ '__| '_ ` _ \ / _ \| || '__/ _` |/ __/ _ \
+  | | | | | |  __/ |  | | | | | | (_) | || | | (_| | (_|  __/
+  |_| |_| |_|\___|_|  |_| |_| |_|\___/|_||_|  \__,_|\___\___|
+
+
+```
+</p>
+
+<p align="center">
+![Python](https://img.shields.io/badge/Python-Programming-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-WebFramework-009688?logo=fastapi&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-4169E1?logo=postgresql&logoColor=white)
+![PostGIS](https://img.shields.io/badge/PostGIS-Geospatial-5B8C85?logo=postgresql&logoColor=white)
+![GeoPandas](https://img.shields.io/badge/GeoPandas-Geospatial-139C5A?logo=python&logoColor=white)
+![Shapely](https://img.shields.io/badge/Shapely-Geometry-3776AB?logo=python&logoColor=white)
+![Rasterio](https://img.shields.io/badge/Rasterio-RasterProcessing-3776AB?logo=python&logoColor=white)
+![PyProj](https://img.shields.io/badge/PyProj-CRS-3776AB?logo=python&logoColor=white)
+![Pandas](https://img.shields.io/badge/Pandas-DataProcessing-150458?logo=pandas&logoColor=white)
+![NumPy](https://img.shields.io/badge/NumPy-ScientificComputing-013243?logo=numpy&logoColor=white)
+![Scikit-learn](https://img.shields.io/badge/Scikit--learn-MachineLearning-F7931E?logo=scikit-learn&logoColor=white)
+![SciPy](https://img.shields.io/badge/SciPy-ScientificComputing-8CAAE6?logo=scipy&logoColor=white)
+![OpenStreetMap](https://img.shields.io/badge/OpenStreetMap-OSM-7EBC6F?logo=openstreetmap&logoColor=white)
+![NASA FIRMS](https://img.shields.io/badge/NASA%20FIRMS-ThermalDetection-E03C31?logo=nasa&logoColor=white)
+![Sentinel-2](https://img.shields.io/badge/Sentinel--2-RemoteSensing-003247?logo=esa&logoColor=white)
+![WorldCover](https://img.shields.io/badge/WorldCover-LandCover-003247?logo=esa&logoColor=white)
+![React](https://img.shields.io/badge/React-Frontend-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-Frontend-3178C6?logo=typescript&logoColor=white)
+![MapLibre](https://img.shields.io/badge/MapLibre-GISMapping-396CB2?logo=maplibre&logoColor=white)
+![Plotly](https://img.shields.io/badge/Plotly-DataVisualization-3F4F75?logo=plotly&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-Cache-DC382D?logo=redis&logoColor=white)
+![Celery](https://img.shields.io/badge/Celery-TaskQueue-37814A?logo=celery&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Containerization-2496ED?logo=docker&logoColor=white)
+</p>
+
 =======
 # India Industrial Intelligence Platform
 

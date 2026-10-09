@@ -1,0 +1,11 @@
+node_modules
+**/node_modules
+dist
+**/dist
+data
+.git
+.env
+**/.env
+**/__pycache__
+*.log
+*.pbf

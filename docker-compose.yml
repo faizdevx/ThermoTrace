@@ -1,0 +1,143 @@
+# ThermoTrace - PostGIS + sync worker + API + frontend.
+#
+#   cp .env.example .env            # then change POSTGRES_PASSWORD / ADMIN_TOKEN
+#   docker compose up -d --build    # db, migrations, api, worker, frontend
+#   docker compose --profile bootstrap run --rm bootstrap   # one-time real-data import
+#
+# The worker never starts importing on its own: the baseline import is an explicit step.
+name: thermotrace
+
+x-db-env: &db-env
+  DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-thermotrace}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-thermotrace}
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-thermotrace}
+      POSTGRES_USER: ${POSTGRES_USER:-thermotrace}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    command: >
+      postgres -c shared_buffers=${PG_SHARED_BUFFERS:-512MB}
+               -c max_wal_size=4GB -c checkpoint_timeout=30min
+               -c maintenance_work_mem=512MB -c max_connections=100
+    ports:
+      - "127.0.0.1:${DB_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    image: thermotrace-worker:local
+    build: { context: ., dockerfile: docker/worker.Dockerfile }
+    command: ["migrate"]
+    environment: *db-env
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    build: { context: ., dockerfile: docker/api.Dockerfile }
+    environment:
+      <<: *db-env
+      DATA_MODE: postgis
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8080,http://localhost:5173}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      THERMAL_DATA_DIR: /data/thermal/live
+    volumes:
+      - thermaldata:/data/thermal:ro
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  worker:
+    image: thermotrace-worker:local
+    build: { context: ., dockerfile: docker/worker.Dockerfile }
+    command: ["run"]
+    environment:
+      <<: *db-env
+      OSM_REGION: ${OSM_REGION:-asia/india/north-eastern-zone}
+      OSM_POLL_INTERVAL_SECONDS: ${OSM_POLL_INTERVAL_SECONDS:-300}
+      OSM_FRESHNESS_TARGET_SECONDS: ${OSM_FRESHNESS_TARGET_SECONDS:-129600}
+      OSM_REPLICATION_URL: ${OSM_REPLICATION_URL:-}
+      OSM_SOURCE_CADENCE: ${OSM_SOURCE_CADENCE:-daily (Geofabrik extract diffs)}
+      SYNC_RETRY_BASE_SECONDS: ${SYNC_RETRY_BASE_SECONDS:-30}
+      SYNC_RETRY_MAX_SECONDS: ${SYNC_RETRY_MAX_SECONDS:-3600}
+      SYNC_HTTP_TIMEOUT_SECONDS: ${SYNC_HTTP_TIMEOUT_SECONDS:-30}
+    volumes:
+      - osmdata:/data/osm
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    stop_grace_period: 60s
+    restart: unless-stopped
+
+  # NASA FIRMS thermal-source classifier: fetch -> cluster -> classify -> snapshot + PostGIS, every 30 min.
+  thermal:
+    image: thermotrace-worker:local
+    build: { context: ., dockerfile: docker/worker.Dockerfile }
+    entrypoint: ["python", "-m", "src.thermal.cli"]
+    command: ["run"]
+    environment:
+      <<: *db-env
+      THERMAL_DATA_DIR: /data/thermal/live
+      THERMAL_SITES_GEOJSON: /data/thermal/sites_india.geojson
+      THERMAL_INTERVAL_SECONDS: ${THERMAL_INTERVAL_SECONDS:-1800}
+      THERMAL_WINDOW_DAYS: ${THERMAL_WINDOW_DAYS:-14}
+      FIRMS_MAP_KEY: ${FIRMS_MAP_KEY:-}
+    volumes:
+      - thermaldata:/data/thermal
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+  # One-off: cache India-wide OSM facilities (refineries, plants, steel, mines...) used to attribute thermal sources.
+  thermal-bootstrap:
+    profiles: ["bootstrap"]
+    image: thermotrace-worker:local
+    build: { context: ., dockerfile: docker/worker.Dockerfile }
+    entrypoint: ["python", "scripts/fetch_thermal_sites.py", "--out", "/data/thermal/sites_india.geojson"]
+    volumes:
+      - thermaldata:/data/thermal
+
+  bootstrap:
+    profiles: ["bootstrap"]
+    image: thermotrace-worker:local
+    build: { context: ., dockerfile: docker/worker.Dockerfile }
+    command: ["bootstrap"]
+    environment:
+      <<: *db-env
+      OSM_REGION: ${OSM_REGION:-asia/india/north-eastern-zone}
+      OSM_CACHE_MB: ${OSM_CACHE_MB:-1024}
+    volumes:
+      - osmdata:/data/osm
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+
+  frontend:
+    build: { context: ., dockerfile: docker/frontend.Dockerfile }
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8080}:80"
+    depends_on:
+      api: { condition: service_started }
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  osmdata:
+  thermaldata:

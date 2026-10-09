@@ -1,0 +1,3 @@
+ALTER TABLE india_boundary ADD COLUMN IF NOT EXISTS level_name TEXT;
+ALTER TABLE states ADD COLUMN IF NOT EXISTS level_name TEXT;
+ALTER TABLE districts ADD COLUMN IF NOT EXISTS level_name TEXT;

@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  backend-api:
+    name: API tests (synthetic fixtures + thermal snapshot)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: industrial-gis/backend/requirements-dev.txt }
+      - run: pip install -r industrial-gis/backend/requirements-dev.txt
+      - name: pytest (DATA_MODE=synthetic, no database)
+        working-directory: industrial-gis
+        env: { DATA_MODE: synthetic }
+        run: python -m pytest backend/tests -q
+
+  postgis:
+    name: PostGIS sync lifecycle + API contract tests
+    runs-on: ubuntu-latest
+    services:
+      postgis:
+        image: postgis/postgis:16-3.4
+        env: { POSTGRES_PASSWORD: ci, POSTGRES_USER: postgres }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:ci@localhost:5432/postgres
+      DATABASE_URL: postgresql://postgres:ci@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: "industrial-data/requirements.txt" }
+      - run: pip install -r industrial-data/requirements.txt -r industrial-gis/backend/requirements-dev.txt
+      - name: Sync lifecycle, thermal pipeline (deterministic fixtures)
+        working-directory: industrial-data
+        run: python -m pytest tests/sync tests/thermal -q
+      - name: API contract tests against PostGIS
+        working-directory: industrial-gis
+        env: { DATA_MODE: postgis }
+        run: python -m pytest backend/tests/postgis -q
+
+  frontend:
+    name: Frontend typecheck, tests, build
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: industrial-gis/frontend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: industrial-gis/frontend/package-lock.json }
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test
+      - run: npm run build

@@ -71,3 +71,20 @@ def test_overall_ignores_unconfigured_government_sources_but_reports_worst_enabl
     delayed = derive_source(row(source_head_sequence=99), NOW)
     assert overall([live, delayed, gov])["state"] == "delayed"
     assert overall([gov])["state"] == "not_configured"
+
+
+def test_firms_source_states():
+    from backend.app.services.sync_status import derive_firms
+    iso = lambda dt: dt.isoformat()  # noqa: E731
+    base = {"poll_interval_seconds": 600, "last_check_at": iso(NOW - timedelta(minutes=4)),
+            "last_change_at": iso(NOW - timedelta(minutes=50)), "last_success_at": iso(NOW - timedelta(minutes=50)),
+            "latest_detection_at": iso(NOW - timedelta(hours=4)), "state": "idle", "consecutive_failures": 0}
+    assert derive_firms(base, NOW)["state"] == "live"
+    assert derive_firms({**base, "state": "processing"}, NOW)["state"] == "syncing"
+    assert derive_firms({**base, "last_check_at": iso(NOW - timedelta(hours=2))}, NOW)["state"] == "delayed"
+    assert derive_firms({**base, "latest_detection_at": iso(NOW - timedelta(hours=20))}, NOW)["state"] == "delayed"
+    assert derive_firms({**base, "consecutive_failures": 1, "last_error": "x"}, NOW)["state"] == "delayed"
+    out = derive_firms({**base, "consecutive_failures": 3, "last_error": "dns"}, NOW)
+    assert out["state"] == "offline" and "dns" in out["reason"]
+    live = derive_firms(base, NOW)
+    assert live["last_check_at"] != live["last_commit_at"] and live["data_age_seconds"] == 4 * 3600   # kept separate

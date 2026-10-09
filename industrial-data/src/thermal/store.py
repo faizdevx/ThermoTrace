@@ -76,6 +76,10 @@ def _json_default(obj):
     return str(obj)
 
 
+def snapshot_exists(directory: Path) -> bool:
+    return (directory / SNAPSHOT_FILE).exists()
+
+
 def write_status(directory: Path, **fields) -> dict:
     path = directory / STATUS_FILE
     current = json.loads(path.read_text()) if path.exists() else {}

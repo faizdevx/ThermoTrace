@@ -9,7 +9,7 @@ export interface UiUpdateInfo {
   atMs: number;
 }
 
-const STATE_STYLE: Record<SyncState | 'unreachable', { label: string; color: string; bg: string }> = {
+const STATE_STYLE: Record<SyncState | 'unreachable' | 'connecting', { label: string; color: string; bg: string }> = {
   live: { label: 'Live', color: '#15803d', bg: 'rgba(34,197,94,0.12)' },
   syncing: { label: 'Syncing', color: '#0369a1', bg: 'rgba(14,165,233,0.14)' },
   delayed: { label: 'Delayed', color: '#b45309', bg: 'rgba(245,158,11,0.16)' },
@@ -17,6 +17,7 @@ const STATE_STYLE: Record<SyncState | 'unreachable', { label: string; color: str
   not_configured: { label: 'Not configured', color: '#475569', bg: 'rgba(100,116,139,0.14)' },
   awaiting_setup: { label: 'Awaiting import', color: '#475569', bg: 'rgba(100,116,139,0.14)' },
   unreachable: { label: 'Offline', color: '#b91c1c', bg: 'rgba(239,68,68,0.14)' },
+  connecting: { label: 'Connecting…', color: '#475569', bg: 'rgba(100,116,139,0.14)' },
 };
 
 export function formatAge(seconds: number | null | undefined): string {
@@ -36,6 +37,7 @@ function ageFromIso(iso: string | null, nowMs: number): string {
 
 const SOURCE_LABEL: Record<string, string> = {
   openstreetmap: 'OpenStreetMap',
+  nasa_firms: 'NASA FIRMS thermal',
   gov_india_industrial_land_bank: 'India Industrial Land Bank',
   gov_industrial_corridor_land: 'Industrial Corridor Land Platform',
   gov_ncog_up_industrial_parks: 'NCoG / UP Industrial Parks GIS',
@@ -71,7 +73,7 @@ function SourceBlock({ s, nowMs }: { s: SyncSource; nowMs: number }) {
           <Row k="Freshness target" v={s.freshness_target_seconds ? formatAge(s.freshness_target_seconds) : 'n/a'} />
         </>
       )}
-      {s.last_error && (
+      {s.last_error && s.state !== 'not_configured' && (
         <div style={{ marginTop: 4, fontSize: 11, color: '#b91c1c', wordBreak: 'break-word' }}>
           Unresolved error: {s.last_error}
           {s.next_retry_at ? ` (retry ${ageFromIso(s.next_retry_at, nowMs).replace(' ago', '')} from now)` : ''}
@@ -106,8 +108,8 @@ export function LiveStatus({ status, unreachable, connection, lastUiUpdate, onRe
   }, [open]);
 
   const dbDown = status?.database.status === 'unavailable';
-  const overallKey: SyncState | 'unreachable' =
-    unreachable || !status ? 'unreachable' : dbDown ? 'offline' : status.overall.state;
+  const overallKey: SyncState | 'unreachable' | 'connecting' =
+    unreachable ? 'unreachable' : !status ? 'connecting' : dbDown ? 'offline' : status.overall.state;
   const style = STATE_STYLE[overallKey];
   const synthetic = status?.data_mode === 'synthetic';
   const osm = status?.sources.find(s => s.source === 'openstreetmap');
@@ -131,7 +133,7 @@ export function LiveStatus({ status, unreachable, connection, lastUiUpdate, onRe
           animation: overallKey === 'syncing' ? 'pulse 1s ease-in-out infinite' : undefined,
         }} />
         {synthetic ? 'Demo (no sync)' : style.label}
-        {!synthetic && osm?.data_age_seconds != null && overallKey !== 'unreachable' && (
+        {!synthetic && osm?.data_age_seconds != null && overallKey !== 'unreachable' && overallKey !== 'connecting' && (
           <span style={{ fontWeight: 500, opacity: 0.85 }}>· data {formatAge(osm.data_age_seconds)} old</span>
         )}
       </button>

@@ -95,7 +95,7 @@ services:
       <<: *db-env
       THERMAL_DATA_DIR: /data/thermal/live
       THERMAL_SITES_GEOJSON: /data/thermal/sites_india.geojson
-      THERMAL_INTERVAL_SECONDS: ${THERMAL_INTERVAL_SECONDS:-1800}
+      THERMAL_INTERVAL_SECONDS: ${THERMAL_INTERVAL_SECONDS:-600}
       THERMAL_WINDOW_DAYS: ${THERMAL_WINDOW_DAYS:-14}
       FIRMS_MAP_KEY: ${FIRMS_MAP_KEY:-}
     volumes:

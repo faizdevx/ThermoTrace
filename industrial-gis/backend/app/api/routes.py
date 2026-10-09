@@ -280,6 +280,9 @@ def sync_status_endpoint() -> dict[str, Any]:
                 "database": {"status": "unavailable"}, "time": now.isoformat()}
     rows = repo.get_sync_rows()
     sources = [sync_status.derive_source(r, now) for r in rows]
+    firms_source = _firms_sync_source(now)
+    if firms_source:
+        sources.append(firms_source)
     rev = repo.get_revision()
     return {
         "data_mode": "postgis",
@@ -291,6 +294,16 @@ def sync_status_endpoint() -> dict[str, Any]:
         "revision_changed_at": rev["changed_at"],
         "time": now.isoformat(),
     }
+
+
+def _firms_sync_source(now: datetime) -> dict[str, Any] | None:
+    """Express the thermal worker's status in the same shape as the other sync sources."""
+    fb = thermal_repo._file_singleton()
+    backend = fb if fb.available() else thermal_repo.get_backend()
+    if not backend.available():
+        return None
+    st = backend.run_info().get("status") or {}
+    return sync_status.derive_firms(st, now)
 
 
 @router.get("/sync/history")

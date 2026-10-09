@@ -108,3 +108,50 @@ def overall(sources: list[dict[str, Any]]) -> dict[str, str]:
     worst = max(active, key=lambda s: _SEVERITY[s["state"]])
     # a syncing source should not hide a worse state elsewhere, nor mask 'live' siblings
     return {"state": worst["state"], "reason": worst["reason"], "source": worst["source"]}
+
+
+FIRMS_SOURCE = "nasa_firms"
+
+
+def derive_firms(st: dict[str, Any], now: datetime) -> dict[str, Any]:
+    """FIRMS thermal worker status -> sync-source shape.
+
+    live: checked within 3 poll intervals AND newest detection < 12 h old (VIIRS NRT trails the
+    satellite pass by ~3 h, so hours-old newest data is normal, days-old is not).
+    """
+    def ts(key):
+        v = st.get(key)
+        return datetime.fromisoformat(v) if v else None
+
+    interval = int(st.get("poll_interval_seconds") or 600)
+    last_check, last_change = ts("last_check_at") or ts("last_success_at"), ts("last_change_at") or ts("last_success_at")
+    latest = ts("latest_detection_at")
+    check_age = _age(now, last_check)
+    data_age = _age(now, latest)
+    failures = int(st.get("consecutive_failures") or 0)
+    if st.get("state") in ("checking", "processing"):
+        state, reason = "syncing", "Fetching / classifying a new FIRMS batch."
+    elif failures >= OFFLINE_AFTER_FAILURES:
+        state, reason = "offline", f"FIRMS fetch failed {failures} times: {st.get('last_error')}"
+    elif failures:
+        state, reason = "delayed", f"Last FIRMS refresh failed: {st.get('last_error')}"
+    elif check_age is None or check_age > max(3 * interval, 900):
+        state, reason = "delayed", "FIRMS has not been checked recently (thermal worker may be stopped)."
+    elif data_age is not None and data_age > 12 * 3600:
+        state, reason = "delayed", "Newest FIRMS detection is more than 12 h old."
+    else:
+        state, reason = "live", "Checked recently; newest detections are within the satellite-latency window."
+    return {
+        "source": FIRMS_SOURCE, "kind": "thermal_firms", "state": state, "reason": reason, "enabled": True,
+        "update_cadence": f"near-real-time: FIRMS publishes VIIRS passes ~3 h after acquisition; checked every {interval // 60} min",
+        "poll_interval_seconds": interval, "freshness_target_seconds": 12 * 3600,
+        "last_check_at": _iso(last_check), "last_check_age_seconds": check_age,
+        "last_source_data_at": _iso(latest), "data_age_seconds": data_age,
+        "source_head_timestamp": None, "source_head_published_at": st.get("source_published_at"),
+        "lag_behind_source_seconds": 0.0, "replication_steps_behind": 0,
+        "last_commit_at": _iso(last_change), "last_success_at": _iso(ts("last_success_at")),
+        "cursor": {}, "status_raw": st.get("state"), "consecutive_failures": failures, "next_retry_at": None,
+        "last_error": st.get("last_error") if state != "live" else None,
+        "totals": {"new_detections_last_batch": st.get("new_detections", 0),
+                   "ingest_latency_seconds": st.get("ingest_latency_seconds")},
+    }

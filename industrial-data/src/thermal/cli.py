@@ -46,12 +46,25 @@ def load_sites() -> SiteIndex | None:
     return None
 
 
-def refresh_once(out_dir: Path, window_days: int, use_landcover: bool = True) -> dict:
+def refresh_once(out_dir: Path, window_days: int, use_landcover: bool = True, interval_seconds: int = 1800,
+                 force: bool = False) -> dict:
+    """One cycle. Publishes (snapshot + PostGIS + notifications) ONLY when FIRMS delivered new detections,
+    so an unchanged source never creates a new revision or wakes clients."""
     started = datetime.now(timezone.utc)
-    store.write_status(out_dir, state="running", last_attempt_at=started)
+    store.write_status(out_dir, state="checking", last_attempt_at=started, poll_interval_seconds=interval_seconds)
     try:
         fresh = firms.fetch(firms.FirmsConfig.from_env())
         history = store.load_history(out_dir)
+        known = set(history["detection_id"]) if len(history) else set()
+        new_count = int((~fresh["detection_id"].isin(known)).sum())
+        checked = datetime.now(timezone.utc)
+        if known and new_count == 0 and not force and store.snapshot_exists(out_dir):
+            status = store.write_status(out_dir, state="idle", last_check_at=checked, last_error=None,
+                                        consecutive_failures=0, new_detections=0, poll_interval_seconds=interval_seconds,
+                                        source_published_at=fresh.attrs.get("published_at"))
+            logger.info("FIRMS checked: no new detections (nothing published)")
+            return status
+        store.write_status(out_dir, state="processing", new_detections=new_count)
         merged = store.merge_history(history, fresh, keep_days=window_days)
         store.save_history(out_dir, merged)
         span_days = max(int((merged.acq_datetime.max() - merged.acq_datetime.min()).days) + 1, 1)
@@ -68,11 +81,15 @@ def refresh_once(out_dir: Path, window_days: int, use_landcover: bool = True) ->
                 store.write_status(out_dir, db_error=str(exc)[:300])
         finished = datetime.now(timezone.utc)
         latest = merged.acq_datetime.max()
+        published = fresh.attrs.get("published_at")
         status = store.write_status(
-            out_dir, state="idle", last_attempt_at=started, last_success_at=finished, last_error=None,
-            latest_detection_at=latest, fetch_errors=fresh.attrs.get("errors", []), db_run_id=run_id,
-            summary=result.summary, duration_seconds=(finished - started).total_seconds(),
-            consecutive_failures=0)
+            out_dir, state="idle", last_attempt_at=started, last_check_at=checked, last_success_at=finished,
+            last_change_at=finished, last_error=None, latest_detection_at=latest,
+            fetch_errors=fresh.attrs.get("errors", []), db_run_id=run_id, summary=result.summary,
+            duration_seconds=(finished - started).total_seconds(), consecutive_failures=0,
+            new_detections=new_count, poll_interval_seconds=interval_seconds, source_published_at=published,
+            # source file published -> our commit (the pipeline's own latency; satellite->file latency is upstream)
+            ingest_latency_seconds=(finished - published).total_seconds() if published else None)
         logger.info("thermal refresh ok: %d sources, latest detection %s", len(result.sources), latest)
         return status
     except Exception as exc:  # noqa: BLE001
@@ -88,7 +105,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("command", choices=["refresh", "run"])
     ap.add_argument("--out", default=os.getenv("THERMAL_DATA_DIR", "data/thermal/live"))
     ap.add_argument("--window-days", type=int, default=int(os.getenv("THERMAL_WINDOW_DAYS", "14")))
-    ap.add_argument("--interval", type=int, default=int(os.getenv("THERMAL_INTERVAL_SECONDS", "1800")))
+    ap.add_argument("--interval", type=int, default=int(os.getenv("THERMAL_INTERVAL_SECONDS", "600")))
     ap.add_argument("--no-landcover", action="store_true")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -96,7 +113,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "refresh":
         try:
-            refresh_once(out, args.window_days, not args.no_landcover)
+            refresh_once(out, args.window_days, not args.no_landcover, args.interval, force=True)
         except Exception:  # noqa: BLE001
             return 1
         return 0
@@ -110,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
     failures = 0
     while not stop.is_set():
         try:
-            refresh_once(out, args.window_days, not args.no_landcover)
+            refresh_once(out, args.window_days, not args.no_landcover, args.interval)
             failures, wait = 0, args.interval
         except Exception:  # noqa: BLE001
             failures += 1

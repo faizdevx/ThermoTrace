@@ -15,6 +15,7 @@ import hashlib
 import io
 import logging
 import os
+from email.utils import parsedate_to_datetime
 from dataclasses import dataclass
 
 import pandas as pd
@@ -95,6 +96,7 @@ def fetch(cfg: FirmsConfig | None = None, session: requests.Session | None = Non
     http = session or requests.Session()
     frames: list[pd.DataFrame] = []
     errors: list[str] = []
+    published: list = []
     for product in cfg.products:
         url = api_url(product, cfg) if cfg.map_key else public_url(product, cfg)
         shown = url.replace(cfg.map_key, "***") if cfg.map_key else url
@@ -102,6 +104,9 @@ def fetch(cfg: FirmsConfig | None = None, session: requests.Session | None = Non
             r = http.get(url, headers={"User-Agent": UA}, timeout=cfg.timeout)
             r.raise_for_status()
             frames.append(parse_csv(r.text, product))
+            lm = r.headers.get("Last-Modified")
+            if lm:
+                published.append(parsedate_to_datetime(lm))
             logger.info("FIRMS %s: %d rows", product, len(frames[-1]))
         except (requests.RequestException, FirmsUnavailable) as exc:
             errors.append(f"{product}: {exc}")
@@ -112,4 +117,5 @@ def fetch(cfg: FirmsConfig | None = None, session: requests.Session | None = Non
     w, s, e, n = INDIA_BBOX
     df = df[(df.longitude >= w) & (df.longitude <= e) & (df.latitude >= s) & (df.latitude <= n)]
     df.attrs["errors"] = errors
+    df.attrs["published_at"] = max(published) if published else None
     return df.reset_index(drop=True)

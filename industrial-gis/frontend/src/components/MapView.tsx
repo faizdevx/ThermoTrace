@@ -4,134 +4,170 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import 'leaflet.markercluster';
-import type { FeatureCollection, IndustrialSiteFeature } from '@/types/industrial';
+import type {
+  BoundaryFeature,
+  FeatureCollection,
+  IndustrialSiteFeature,
+  ThermalFeature,
+} from '@/types/industrial';
 
-// ── Confidence colour map ────────────────────────────────────────────────────
-const CONFIDENCE_COLORS: Record<string, string> = {
+// ── Evidence colour map (tag completeness; NOT official verification) ─────────
+export const EVIDENCE_COLORS: Record<string, string> = {
   high: '#22c55e',
   medium: '#f59e0b',
   low: '#ef4444',
 };
 
-// ── Industry icon map ────────────────────────────────────────────────────────
-const INDUSTRY_ICONS: Record<string, string> = {
-  logistics: '🚢', automotive: '🚗', engineering: '⚙️', textiles: '🧵',
-  manufacturing: '🏭', petrochemicals: '🛢️', electronics: '💡', energy: '⚡',
-  heavy_engineering: '🔩', foundry: '🔥', pharmaceuticals: '💊', fabrication: '🔧',
-  mixed_manufacturing: '🏗️', chemicals: '⚗️', steel: '🏗️', food_processing: '🌾',
-  marine: '⚓', metalworks: '🔨', renewables: '🌱', default: '🏭',
-};
+const INDUSTRY_ICON_RULES: Array<[RegExp, string]> = [
+  [/chemical|petro/i, '⚗️'], [/metal|steel/i, '🔩'], [/mining|quarr/i, '⛏️'],
+  [/cement|building material/i, '🧱'], [/textile|garment/i, '🧵'], [/food/i, '🌾'],
+  [/energy|power/i, '⚡'], [/warehouse|logistic/i, '📦'], [/wood|paper/i, '🪵'],
+  [/waste|recycl/i, '♻️'], [/water|utilit/i, '💧'], [/industrial area/i, '▦'],
+  [/building/i, '🏢'], [/manufactur/i, '🏭'],
+];
 
-// ── Tear-drop marker icon ────────────────────────────────────────────────────
-function makeIcon(confidence: string, industryType: string): L.DivIcon {
-  const color = CONFIDENCE_COLORS[confidence] ?? '#64748b';
-  const emoji = INDUSTRY_ICONS[industryType] ?? INDUSTRY_ICONS.default;
+function iconFor(industryType: string): string {
+  for (const [rule, emoji] of INDUSTRY_ICON_RULES) if (rule.test(industryType)) return emoji;
+  return '🏭';
+}
+
+function makeIcon(evidence: string, industryType: string, selected: boolean): L.DivIcon {
+  const color = EVIDENCE_COLORS[evidence] ?? '#64748b';
+  const size = selected ? 44 : 36;
   return L.divIcon({
     className: '',
-    html: `
-      <div style="
-        width: 38px; height: 38px;
-        border-radius: 50% 50% 50% 0;
-        transform: rotate(-45deg);
-        background: ${color};
-        border: 2.5px solid #fff;
-        box-shadow: 0 3px 12px rgba(0,0,0,0.3);
-        display: flex; align-items: center; justify-content: center;
-      ">
-        <span style="transform: rotate(45deg); font-size: 17px; line-height: 1;">${emoji}</span>
-      </div>`,
-    iconSize: [38, 38],
-    iconAnchor: [19, 38],
-    popupAnchor: [0, -42],
+    html: `<div style="width:${size}px;height:${size}px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);` +
+      `background:${color};border:${selected ? 3 : 2.5}px solid ${selected ? '#0f172a' : '#fff'};` +
+      `box-shadow:0 3px 12px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;">` +
+      `<span style="transform:rotate(45deg);font-size:${selected ? 19 : 16}px;line-height:1;">${iconFor(industryType)}</span></div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size],
+    popupAnchor: [0, -size - 4],
   });
 }
 
-// ── Popup HTML builder ───────────────────────────────────────────────────────
-function buildPopupHtml(feature: IndustrialSiteFeature): string {
-  const p = feature.properties;
-  const confidenceColor = CONFIDENCE_COLORS[p.match_confidence] ?? '#64748b';
-  const statusLabel = p.status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-  const statusColor = p.status === 'operational' ? '#15803d' : p.status === 'under_construction' ? '#b45309' : '#64748b';
-  const statusBg = p.status === 'operational' ? '#f0fdf4' : p.status === 'under_construction' ? '#fffbeb' : '#f8fafc';
-  const industryLabel = p.industry_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-  const scorePct = Math.round(p.match_score * 100);
-
-  return `
-    <div style="font-family:'IBM Plex Sans',sans-serif; min-width:230px; padding:2px 0;">
-      <div style="font-size:13px;font-weight:700;color:#0f172a;line-height:1.35;margin-bottom:3px;">${p.name}</div>
-      <div style="font-size:11px;color:#64748b;margin-bottom:10px;">${p.district}, ${p.state}</div>
-
-      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;">
-        <span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;background:#f1f5f9;color:#475569;text-transform:uppercase;letter-spacing:0.05em;">
-          ${industryLabel}
-        </span>
-        <span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;background:${statusBg};color:${statusColor};text-transform:uppercase;letter-spacing:0.05em;">
-          ${statusLabel}
-        </span>
-      </div>
-
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-        <div style="flex:1;height:5px;border-radius:99px;background:#e2e8f0;overflow:hidden;">
-          <div style="width:${scorePct}%;height:100%;background:${confidenceColor};border-radius:99px;"></div>
-        </div>
-        <span style="font-size:11px;font-weight:700;color:${confidenceColor};">${scorePct}%</span>
-      </div>
-      <div style="font-size:10px;color:#94a3b8;margin-bottom:10px;">
-        Confidence: <span style="color:${confidenceColor};font-weight:600;text-transform:uppercase;">${p.match_confidence}</span>
-      </div>
-
-      <button
-        onclick="window.__gisSelectSite && window.__gisSelectSite('${p.site_id}')"
-        style="width:100%;padding:7px 0;border-radius:9px;background:#0f172a;color:#fff;font-size:11px;font-weight:600;border:none;cursor:pointer;letter-spacing:0.04em;transition:background 0.2s;"
-        onmouseover="this.style.background='#1e293b'"
-        onmouseout="this.style.background='#0f172a'"
-      >View Full Details →</button>
-    </div>`;
+function label(value: string): string {
+  return value ? value.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '';
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+/** Popup built with DOM APIs + textContent: OSM names/tags are untrusted, never injected as HTML. */
+function buildPopup(feature: IndustrialSiteFeature, onOpen: (id: string) => void): HTMLElement {
+  const p = feature.properties;
+  const root = document.createElement('div');
+  root.style.cssText = "font-family:'IBM Plex Sans',sans-serif;min-width:220px;";
+
+  const title = document.createElement('div');
+  title.style.cssText = 'font-size:13px;font-weight:700;color:#0f172a;line-height:1.35;margin-bottom:3px;';
+  title.textContent = p.name || `Unnamed ${p.industry_type || 'industrial site'}`;
+  root.appendChild(title);
+
+  const where = document.createElement('div');
+  where.style.cssText = 'font-size:11px;color:#64748b;margin-bottom:8px;';
+  where.textContent = [p.district, p.state].filter(Boolean).join(', ') || 'Administrative area unassigned';
+  root.appendChild(where);
+
+  const chips = document.createElement('div');
+  chips.style.cssText = 'display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;';
+  const evidence = p.evidence_level ?? 'low';
+  for (const [text, bg, fg] of [
+    [label(p.industry_type), '#f1f5f9', '#475569'],
+    [`Mapped status: ${label(p.status) || 'unknown'}`, '#f8fafc', '#64748b'],
+    [`Evidence: ${evidence}`, `${EVIDENCE_COLORS[evidence] ?? '#64748b'}22`, EVIDENCE_COLORS[evidence] ?? '#64748b'],
+  ] as const) {
+    const chip = document.createElement('span');
+    chip.style.cssText = `font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;background:${bg};color:${fg};`;
+    chip.textContent = text;
+    chips.appendChild(chip);
+  }
+  root.appendChild(chips);
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = 'View details →';
+  button.style.cssText =
+    'width:100%;padding:7px 0;border-radius:9px;background:#0f172a;color:#fff;font-size:11px;font-weight:600;border:none;cursor:pointer;';
+  button.addEventListener('click', () => onOpen(p.site_id));
+  root.appendChild(button);
+  return root;
+}
+
+export interface MapViewport {
+  bbox: string;
+  zoom: number;
+}
+
+export interface FitRequest {
+  id: number;
+  bounds: [number, number, number, number]; // west, south, east, north
+}
 
 interface MapViewProps {
   sites: FeatureCollection<IndustrialSiteFeature> | null;
   selectedSiteId: string | null;
+  /** Full-geometry feature of the selected site (outline is drawn for polygons). */
+  selectedSite: IndustrialSiteFeature | null;
+  stateBoundaries: FeatureCollection<BoundaryFeature> | null;
+  districtBoundaries: FeatureCollection<BoundaryFeature> | null;
+  fitRequest: FitRequest | null;
   onSelectSite: (siteId: string) => void;
-  /** Called (debounced) whenever the visible map bounds change. Format: "minLon,minLat,maxLon,maxLat" */
-  onBoundsChange?: (bbox: string) => void;
+  onViewportChange?: (viewport: MapViewport) => void;
+  /** Classified FIRMS thermal sources (null = layer hidden). */
+  thermal?: FeatureCollection<ThermalFeature> | null;
+  thermalColors?: Record<string, string>;
+  selectedThermalId?: string | null;
+  onSelectThermal?: (sourceId: string) => void;
 }
 
-export function MapView({ sites, selectedSiteId, onSelectSite, onBoundsChange }: MapViewProps) {
+export function thermalRadius(frpMax: number): number {
+  return Math.min(18, Math.max(4, 3.5 + 1.7 * Math.sqrt(Math.max(frpMax, 0))));
+}
+
+export function MapView({
+  sites, selectedSiteId, selectedSite, stateBoundaries, districtBoundaries,
+  fitRequest, onSelectSite, onViewportChange,
+  thermal = null, thermalColors = {}, selectedThermalId = null, onSelectThermal,
+}: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
-  const markerMapRef = useRef<Map<string, L.Marker>>(new Map());
+  const markersRef = useRef<Map<string, { marker: L.Marker; sig: string }>>(new Map());
+  const outlineRef = useRef<L.GeoJSON | null>(null);
+  const stateLayerRef = useRef<L.GeoJSON | null>(null);
+  const districtLayerRef = useRef<L.GeoJSON | null>(null);
+  const selectedIdRef = useRef<string | null>(selectedSiteId);
+  const thermalLayerRef = useRef<L.LayerGroup | null>(null);
+  const thermalMarkersRef = useRef<Map<string, { marker: L.CircleMarker; sig: string }>>(new Map());
+  const onSelectThermalRef = useRef(onSelectThermal);
+  useEffect(() => { onSelectThermalRef.current = onSelectThermal; }, [onSelectThermal]);
 
-  // Keep callback refs so listeners always call the latest version
-  const onSelectSiteRef = useRef(onSelectSite);
-  const onBoundsChangeRef = useRef(onBoundsChange);
-  useEffect(() => { onSelectSiteRef.current = onSelectSite; }, [onSelectSite]);
-  useEffect(() => { onBoundsChangeRef.current = onBoundsChange; }, [onBoundsChange]);
+  const onSelectRef = useRef(onSelectSite);
+  const onViewportRef = useRef(onViewportChange);
+  useEffect(() => { onSelectRef.current = onSelectSite; }, [onSelectSite]);
+  useEffect(() => { onViewportRef.current = onViewportChange; }, [onViewportChange]);
+  useEffect(() => { selectedIdRef.current = selectedSiteId; }, [selectedSiteId]);
 
   // ── Initialise Leaflet map (once) ─────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    const map = L.map(containerRef.current, {
-      center: [22.5, 82.0],
-      zoom: 5,
-      zoomControl: false, // We'll add custom-positioned controls
-    });
+    const map = L.map(containerRef.current, { center: [24.5, 80.5], zoom: 6, zoomControl: false });
+    map.createPane('boundaries').style.zIndex = '350';
+    map.createPane('outline').style.zIndex = '450';
+    map.createPane('thermal').style.zIndex = '420';
+    thermalLayerRef.current = L.layerGroup([], { pane: 'thermal' }).addTo(map);
 
-    // CartoDB Positron — clean light basemap
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd',
+    // Basemap: OpenStreetMap standard tiles (https://operations.osmfoundation.org/policies/tiles/ - fine for
+    // light use; set VITE_TILE_URL to your own tile provider for production traffic). Map DATA: OSM (ODbL).
+    const tileUrl = (import.meta.env.VITE_TILE_URL as string | undefined) ?? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    L.tileLayer(tileUrl, {
+      attribution:
+        '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · ' +
+        'fire data <a href="https://firms.modaps.eosdis.nasa.gov/">NASA FIRMS</a> · ' +
+        'land cover <a href="https://esa-worldcover.org/">ESA WorldCover</a>',
       maxZoom: 19,
     }).addTo(map);
-
-    // Custom-positioned zoom control (bottom right)
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-    // Cluster group with custom rendering
     const clusterGroup = (L as unknown as {
       markerClusterGroup: (opts?: object) => L.MarkerClusterGroup;
     }).markerClusterGroup({
@@ -141,113 +177,203 @@ export function MapView({ sites, selectedSiteId, onSelectSite, onBoundsChange }:
       chunkedLoading: true,
       iconCreateFunction: (cluster: L.MarkerCluster) => {
         const count = cluster.getChildCount();
-        const size = count < 10 ? 36 : count < 50 ? 44 : 52;
-        const hue = count < 5 ? 201 : count < 15 ? 43 : 0; // blue → amber → red
+        const size = count < 10 ? 36 : count < 100 ? 44 : 52;
+        const hue = count < 10 ? 201 : count < 100 ? 43 : 0;
         return L.divIcon({
-          html: `
-            <div style="
-              width:${size}px; height:${size}px; border-radius:50%;
-              background: hsla(${hue}, 90%, 50%, 0.18);
-              border: 2px solid hsla(${hue}, 90%, 50%, 0.55);
-              display:flex; align-items:center; justify-content:center;
-            ">
-              <span style="font-size:${size < 44 ? 12 : 14}px; font-weight:700; color:hsl(${hue},70%,35%);">${count}</span>
-            </div>`,
+          html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:hsla(${hue},90%,50%,0.18);` +
+            `border:2px solid hsla(${hue},90%,50%,0.55);display:flex;align-items:center;justify-content:center;">` +
+            `<span style="font-size:${size < 44 ? 12 : 14}px;font-weight:700;color:hsl(${hue},70%,35%);">${count}</span></div>`,
           className: '',
           iconSize: [size, size],
           iconAnchor: [size / 2, size / 2],
         });
       },
     });
-
     map.addLayer(clusterGroup);
     mapRef.current = map;
     clusterRef.current = clusterGroup;
 
-    // ── Bounds change listener (for bbox-based API calls) ─────────────────
-    let boundsTimer: ReturnType<typeof setTimeout> | null = null;
-    map.on('moveend', () => {
-      if (boundsTimer) clearTimeout(boundsTimer);
-      boundsTimer = setTimeout(() => {
-        const b = map.getBounds();
-        const bbox = [
-          b.getWest().toFixed(4),
-          b.getSouth().toFixed(4),
-          b.getEast().toFixed(4),
-          b.getNorth().toFixed(4),
-        ].join(',');
-        onBoundsChangeRef.current?.(bbox);
-      }, 600);
-    });
+    const emitViewport = () => {
+      const b = map.getBounds();
+      onViewportRef.current?.({
+        bbox: [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].map(v => v.toFixed(4)).join(','),
+        zoom: map.getZoom(),
+      });
+    };
+    map.on('moveend', emitViewport);
+    map.whenReady(emitViewport);
 
+    // Leaflet needs a size recalculation when the container resizes (responsive layout).
+    const observer = new ResizeObserver(() => map.invalidateSize());
+    observer.observe(containerRef.current);
+
+    const markers = markersRef.current;
     return () => {
-      if (boundsTimer) clearTimeout(boundsTimer);
+      observer.disconnect();
       map.remove();
       mapRef.current = null;
       clusterRef.current = null;
+      markers.clear();
     };
   }, []);
 
-  // ── Expose select callback globally for popup button ─────────────────────
+  // ── Reconcile markers incrementally (no flicker, popup + map position preserved) ──
   useEffect(() => {
-    (window as unknown as Record<string, unknown>).__gisSelectSite = (id: string) => {
-      onSelectSiteRef.current(id);
-    };
-  }, []);
-
-  // ── Sync markers whenever sites prop changes ──────────────────────────────
-  useEffect(() => {
-    const map = mapRef.current;
     const cluster = clusterRef.current;
-    if (!map || !cluster) return;
-
-    cluster.clearLayers();
-    markerMapRef.current.clear();
-
-    if (!sites || sites.features.length === 0) return;
-
-    const latLngs: L.LatLng[] = [];
-
-    sites.features.forEach(feature => {
-      const [lon, lat] = feature.geometry.coordinates;
-      const marker = L.marker([lat, lon], {
-        icon: makeIcon(feature.properties.match_confidence, feature.properties.industry_type),
-      });
-
-      marker.bindPopup(buildPopupHtml(feature), { maxWidth: 300, minWidth: 240 });
-
-      // Click → select site + open popup
-      marker.on('click', () => {
-        onSelectSiteRef.current(feature.properties.site_id);
-      });
-
-      cluster.addLayer(marker);
-      markerMapRef.current.set(feature.properties.site_id, marker);
-      latLngs.push(L.latLng(lat, lon));
-    });
-
-    // Fit map to visible markers
-    if (latLngs.length > 0) {
-      const bounds = L.latLngBounds(latLngs);
-      map.fitBounds(bounds, { padding: [48, 48], maxZoom: 11, animate: true });
+    if (!cluster) return;
+    const existing = markersRef.current;
+    const incoming = new Map<string, IndustrialSiteFeature>();
+    for (const f of sites?.features ?? []) {
+      if (f.geometry.type === 'Point') incoming.set(f.properties.site_id, f);
     }
+
+    const toRemove: L.Layer[] = [];
+    for (const [id, entry] of existing) {
+      if (!incoming.has(id)) { toRemove.push(entry.marker); existing.delete(id); }
+    }
+    if (toRemove.length) cluster.removeLayers(toRemove);
+
+    const toAdd: L.Marker[] = [];
+    for (const [id, feature] of incoming) {
+      const p = feature.properties;
+      const sig = `${p.revision ?? 0}|${p.evidence_level}|${p.industry_type}|${p.name}`;
+      const prev = existing.get(id);
+      if (prev && prev.sig === sig) continue;       // unchanged: keep the very same marker
+      if (prev) cluster.removeLayer(prev.marker);   // changed: replace
+      const [lon, lat] = (feature.geometry as { coordinates: [number, number] }).coordinates;
+      const marker = L.marker([lat, lon], {
+        icon: makeIcon(p.evidence_level ?? 'low', p.industry_type, id === selectedIdRef.current),
+        title: p.name || undefined,
+      });
+      marker.bindPopup(() => buildPopup(feature, sid => onSelectRef.current(sid)), { maxWidth: 300, minWidth: 230 });
+      marker.on('click', () => onSelectRef.current(id));
+      existing.set(id, { marker, sig });
+      toAdd.push(marker);
+    }
+    if (toAdd.length) cluster.addLayers(toAdd);
   }, [sites]);
 
-  // ── Pan to + highlight selected marker ────────────────────────────────────
+  // ── Thermal sources: canvas circle markers, reconciled by source id (no flicker on live refresh) ──
   useEffect(() => {
-    if (!selectedSiteId || !mapRef.current) return;
-    const marker = markerMapRef.current.get(selectedSiteId);
-    if (marker) {
-      const currentZoom = mapRef.current.getZoom();
-      mapRef.current.setView(marker.getLatLng(), Math.max(currentZoom, 11), { animate: true });
-      setTimeout(() => marker.openPopup(), 350); // wait for animation
+    const layer = thermalLayerRef.current;
+    const map = mapRef.current;
+    if (!layer || !map) return;
+    const existing = thermalMarkersRef.current;
+    const incoming = new Map<string, ThermalFeature>();
+    for (const f of thermal?.features ?? []) incoming.set(f.properties.source_id, f);
+
+    for (const [id, entry] of existing) {
+      if (!incoming.has(id)) { layer.removeLayer(entry.marker); existing.delete(id); }
     }
+    const renderer = (map as unknown as { _thermalRenderer?: L.Renderer })._thermalRenderer
+      ?? ((map as unknown as { _thermalRenderer?: L.Renderer })._thermalRenderer = L.canvas({ pane: 'thermal', padding: 0.3 }));
+    // draw weak sources first so strong ones stay on top
+    const ordered = [...incoming.values()].sort((a, b) => a.properties.frp_max - b.properties.frp_max);
+    for (const f of ordered) {
+      const p = f.properties;
+      const sig = `${p.last_seen}|${p.thermal_class}|${p.frp_max}|${p.alert_level}|${p.n_days}`;
+      const prev = existing.get(p.source_id);
+      if (prev && prev.sig === sig) continue;
+      if (prev) layer.removeLayer(prev.marker);
+      const color = thermalColors[p.thermal_class] ?? '#64748b';
+      const [lon, lat] = f.geometry.coordinates;
+      const marker = L.circleMarker([lat, lon], {
+        renderer, pane: 'thermal', radius: thermalRadius(p.frp_max), color: p.alert_level ? '#7f1d1d' : '#ffffff',
+        weight: p.alert_level ? 3 : 1, fillColor: color, fillOpacity: 0.75,
+      });
+      marker.bindTooltip(
+        `${p.thermal_label} - ${p.frp_max.toFixed(1)} MW max, ${p.n_days} day(s)${p.site_within && p.site_name ? ` - ${p.site_name}` : ''}`,
+        { sticky: true });
+      marker.on('click', () => onSelectThermalRef.current?.(p.source_id));
+      layer.addLayer(marker);
+      existing.set(p.source_id, { marker, sig });
+    }
+  }, [thermal, thermalColors]);
+
+  useEffect(() => {
+    for (const [id, { marker }] of thermalMarkersRef.current) {
+      const selected = id === selectedThermalId;
+      marker.setStyle({ weight: selected ? 4 : marker.options.weight, color: selected ? '#0f172a' : marker.options.color });
+      if (selected) marker.bringToFront();
+    }
+  }, [selectedThermalId, thermal]);
+
+  // ── Highlight the selected marker and draw its true geometry ─────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    for (const [id, { marker }] of markersRef.current) {
+      const p = sites?.features.find(f => f.properties.site_id === id)?.properties;
+      if (p) marker.setIcon(makeIcon(p.evidence_level ?? 'low', p.industry_type, id === selectedSiteId));
+    }
+    // sites intentionally omitted: icons for new markers are already correct; this only re-styles on selection
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSiteId]);
 
-  return (
-    <div
-      ref={containerRef}
-      style={{ width: '100%', height: '100%', borderRadius: 'inherit' }}
-    />
-  );
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    outlineRef.current?.remove();
+    outlineRef.current = null;
+    if (selectedSite && selectedSite.properties.site_id === selectedSiteId && selectedSite.geometry.type !== 'Point') {
+      outlineRef.current = L.geoJSON(selectedSite as unknown as GeoJSON.Feature, {
+        pane: 'outline',
+        style: { color: '#0f172a', weight: 2.5, fillColor: '#0ea5e9', fillOpacity: 0.22 },
+      }).addTo(map);
+    }
+  }, [selectedSite, selectedSiteId]);
+
+  // Pan to a newly selected site (only when it is not already comfortably in view)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !selectedSite || selectedSite.properties.site_id !== selectedSiteId) return;
+    const { latitude, longitude } = selectedSite.properties;
+    if (latitude == null || longitude == null) return;
+    if (!map.getBounds().pad(-0.15).contains([latitude, longitude])) {
+      map.setView([latitude, longitude], Math.max(map.getZoom(), 11), { animate: true });
+    }
+    // only react to which site is selected, not to its refreshed data
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSiteId]);
+
+  // ── Boundary layers ───────────────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    stateLayerRef.current?.remove();
+    stateLayerRef.current = null;
+    if (stateBoundaries && stateBoundaries.features.length) {
+      stateLayerRef.current = L.geoJSON(stateBoundaries as unknown as GeoJSON.FeatureCollection, {
+        pane: 'boundaries', interactive: false,
+        style: { color: '#1d4ed8', weight: 1.5, fill: false, opacity: 0.75 },
+      }).addTo(map);
+    }
+  }, [stateBoundaries]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    districtLayerRef.current?.remove();
+    districtLayerRef.current = null;
+    if (districtBoundaries && districtBoundaries.features.length) {
+      districtLayerRef.current = L.geoJSON(districtBoundaries as unknown as GeoJSON.FeatureCollection, {
+        pane: 'boundaries',
+        style: { color: '#7c3aed', weight: 1, fill: false, opacity: 0.6, dashArray: '4 3' },
+        onEachFeature: (feature, layer) => {
+          const name = (feature.properties as { name?: string })?.name;
+          if (name) layer.bindTooltip(name, { sticky: true });
+        },
+      }).addTo(map);
+    }
+  }, [districtBoundaries]);
+
+  // ── Explicit fit requests (state/district chosen, reset) - never on data refresh ──
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !fitRequest) return;
+    const [w, s, e, n] = fitRequest.bounds;
+    map.fitBounds([[s, w], [n, e]], { padding: [32, 32], maxZoom: 11, animate: true });
+  }, [fitRequest]);
+
+  return <div ref={containerRef} style={{ width: '100%', height: '100%', borderRadius: 'inherit' }} />;
 }

@@ -6,6 +6,7 @@ interface HeaderProps {
   selectedDistrict: string;
   selectedIndustryType: string;
   selectedStatus: string;
+  selectedConfidence: string;
   options: FilterOptionsResponse | null;
   /** Cascaded district list — only districts valid for the selected state. Falls back to options.districts. */
   availableDistricts?: string[];
@@ -16,6 +17,7 @@ interface HeaderProps {
   onDistrictChange: (value: string) => void;
   onIndustryTypeChange: (value: string) => void;
   onStatusChange: (value: string) => void;
+  onConfidenceChange: (value: string) => void;
   onSearch: () => void;
   onReset: () => void;
 }
@@ -42,6 +44,7 @@ export function Header({
   selectedDistrict,
   selectedIndustryType,
   selectedStatus,
+  selectedConfidence,
   options,
   availableDistricts,
   isLoading = false,
@@ -50,6 +53,7 @@ export function Header({
   onDistrictChange,
   onIndustryTypeChange,
   onStatusChange,
+  onConfidenceChange,
   onSearch,
   onReset,
 }: HeaderProps) {
@@ -79,7 +83,7 @@ export function Header({
             India Industrial Intelligence
           </p>
           <h1 style={{ fontSize: 17, fontWeight: 800, color: '#0f172a', margin: 0, lineHeight: 1.1 }}>
-            Industrial GIS Platform
+            ThermoTrace
           </h1>
         </div>
 
@@ -99,7 +103,7 @@ export function Header({
             <input
               id="site-search-input"
               type="search"
-              placeholder="Search by name, state, district, or industry…"
+              placeholder="Search name, district, state, industry or address…"
               value={searchDraft}
               onChange={e => onSearchDraftChange(e.target.value)}
               style={{
@@ -224,14 +228,31 @@ export function Header({
           ))}
         </select>
 
+        <select
+          id="filter-confidence"
+          value={selectedConfidence}
+          onChange={e => onConfidenceChange(e.target.value)}
+          style={selectStyle}
+          aria-label="Evidence level (tag completeness)"
+          title="Evidence level = how completely the OSM object is tagged (calculated, not official verification)"
+          onFocus={e => { e.currentTarget.style.borderColor = '#0ea5e9'; e.currentTarget.style.background = '#fff'; }}
+          onBlur={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#f8fafc'; }}
+        >
+          <option value="">Any Evidence Level</option>
+          {(options?.confidence_levels ?? []).map(c => (
+            <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)} evidence</option>
+          ))}
+        </select>
+
         {/* Active filter pills */}
-        {(selectedState || selectedDistrict || selectedIndustryType || selectedStatus) && (
+        {(selectedState || selectedDistrict || selectedIndustryType || selectedStatus || selectedConfidence) && (
           <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginLeft: 4 }}>
             {[
               selectedState && { label: selectedState, clear: () => onStateChange('') },
               selectedDistrict && { label: selectedDistrict, clear: () => onDistrictChange('') },
               selectedIndustryType && { label: selectedIndustryType.replace(/_/g, ' '), clear: () => onIndustryTypeChange('') },
               selectedStatus && { label: selectedStatus.replace(/_/g, ' '), clear: () => onStatusChange('') },
+              selectedConfidence && { label: `${selectedConfidence} evidence`, clear: () => onConfidenceChange('') },
             ].filter(Boolean).map((pill, i) => pill && (
               <span
                 key={i}

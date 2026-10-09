@@ -24,8 +24,14 @@ def get_engine() -> Engine:
             echo=False,
             future=True,
             pool_pre_ping=True,  # detect stale connections before reuse
-            pool_size=5,
+            pool_size=settings.pool_size,
             max_overflow=10,
+            pool_timeout=10,
+            connect_args={
+                "connect_timeout": 5,
+                "application_name": "thermotrace-api",
+                "options": f"-c statement_timeout={settings.statement_timeout_ms}",
+            },
         )
         logger.info("Database engine created — url=%s", _redact_url(settings.database_url))
     return _engine

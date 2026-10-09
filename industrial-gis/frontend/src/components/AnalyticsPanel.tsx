@@ -146,7 +146,7 @@ export function AnalyticsPanel({ statistics, isOpen, onClose }: AnalyticsPanelPr
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid #f1f5f9' }}>
               {[
                 { label: 'Total Sites', value: statistics.total_sites, color: '#0ea5e9' },
-                { label: 'States', value: byState.length, color: '#8b5cf6' },
+                { label: 'States', value: statistics.distinct_states ?? byState.length, color: '#8b5cf6' },
                 { label: 'Industries', value: byType.length, color: '#f59e0b' },
               ].map(pill => (
                 <div key={pill.label} style={{
@@ -187,7 +187,7 @@ export function AnalyticsPanel({ statistics, isOpen, onClose }: AnalyticsPanelPr
                   label={type}
                   value={count}
                   total={totalSites}
-                  color={INDUSTRY_COLORS[type] ?? '#94a3b8'}
+                  color={INDUSTRY_COLORS[type] ?? BAR_COLORS[(type.length * 7) % BAR_COLORS.length]}
                 />
               ))}
             </section>
@@ -198,7 +198,7 @@ export function AnalyticsPanel({ statistics, isOpen, onClose }: AnalyticsPanelPr
               background: '#f8fafc', border: '1px solid #e2e8f0',
             }}>
               <p style={{ fontSize: 11, color: '#64748b', margin: 0, lineHeight: 1.5 }}>
-                📊 Data derived from synthetic dataset — Phase 0 milestone. Values will reflect live PostGIS pipeline after integration.
+                📊 Computed live by the API over active OpenStreetMap-derived sites matching your current filters (not the map viewport). Evidence level is calculated tag completeness, not official verification.
               </p>
             </div>
           </>

@@ -15,6 +15,10 @@ from fastapi.testclient import TestClient
 
 from backend.app.main import app
 
+pytestmark = pytest.mark.skipif(
+    __import__("os").getenv("DATA_MODE") != "synthetic", reason="synthetic-mode tests"
+)
+
 client = TestClient(app)
 
 
@@ -88,10 +92,10 @@ class TestIndustriesEndpoint:
         result = get_feature_collection("/api/industries?limit=3")
         assert len(result["features"]) <= 3
 
-    def test_invalid_bbox_handled_gracefully(self) -> None:
-        # Should not crash; falls back to no bbox filter
+    def test_invalid_bbox_is_rejected_with_422(self) -> None:
         resp = client.get("/api/industries?bbox=not_a_number")
-        assert resp.status_code == 200
+        assert resp.status_code == 422
+        assert "bbox" in resp.json()["detail"]
 
     def test_unknown_state_returns_empty(self) -> None:
         result = get_feature_collection("/api/industries?state=ZzzFakeStateName")

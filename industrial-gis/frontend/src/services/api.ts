@@ -1,165 +1,180 @@
 /**
- * Central API client for the India Industrial Intelligence Platform.
+ * Central API client for ThermoTrace.
  *
- * All API calls go through this module. The base URL is configured via the
- * VITE_API_BASE_URL environment variable (see .env.example).  When the
- * variable is unset the Vite dev proxy routes /api → http://localhost:8000.
+ * The base URL comes from VITE_API_BASE_URL; when unset, '/api' is used (Vite dev proxy or
+ * the nginx container proxy forward it to the FastAPI backend).
  */
 import type {
   BoundaryFeature,
   FeatureCollection,
   FilterOptionsResponse,
+  HealthResponse,
   IndustrialSiteFeature,
   IndustryQueryFilters,
   StatisticsResponse,
+  SyncStatusResponse,
+  ThermalClassInfo,
+  ThermalFeature,
+  ThermalFilters,
+  ThermalStats,
+  ThermalStatus,
 } from '@/types/industrial';
 
-// ── Configuration ─────────────────────────────────────────────────────────────
-
-/** Resolved at build-time from VITE_API_BASE_URL or falls back to '/api'. */
-const API_BASE: string =
+export const API_BASE: string =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '/api';
 
-const DEFAULT_TIMEOUT_MS = 10_000; // 10 s for regular requests
-const HEALTH_TIMEOUT_MS  =  3_000; //  3 s for the health probe
+const DEFAULT_TIMEOUT_MS = 15_000;
+const HEALTH_TIMEOUT_MS = 4_000;
 
-// ── Typed error ───────────────────────────────────────────────────────────────
-
-/**
- * Thrown by every request function on network errors, timeouts, and
- * non-2xx HTTP responses.
- *
- * `status === 0` means a network-level failure (offline, DNS, timeout).
- */
 export class ApiError extends Error {
   constructor(
     /** HTTP status code, or 0 for network/timeout errors. */
     public readonly status: number,
     message: string,
-    /** The request path that failed. */
     public readonly path: string,
+    /** True when the caller cancelled the request (not an error to display). */
+    public readonly aborted = false,
   ) {
     super(message);
     this.name = 'ApiError';
   }
 
-  /** True if the error is a network/timeout issue (backend may be down). */
   get isNetworkError(): boolean {
-    return this.status === 0;
+    return this.status === 0 && !this.aborted;
+  }
+
+  /** 503 from the API = database/infrastructure problem rather than a bad request. */
+  get isServerUnavailable(): boolean {
+    return this.status === 503;
   }
 }
 
-// ── Core fetch wrapper ────────────────────────────────────────────────────────
-
 async function requestJson<T>(
   path: string,
-  timeoutMs = DEFAULT_TIMEOUT_MS,
+  options: { timeoutMs?: number; signal?: AbortSignal } = {},
 ): Promise<T> {
   const controller = new AbortController();
-  const timerId = setTimeout(() => controller.abort(), timeoutMs);
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  let timedOut = false;
+  const timerId = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
+  const onCallerAbort = () => controller.abort();
+  options.signal?.addEventListener('abort', onCallerAbort);
 
   try {
     const response = await fetch(`${API_BASE}${path}`, {
       signal: controller.signal,
       headers: { Accept: 'application/json' },
     });
-
-    clearTimeout(timerId);
-
     if (!response.ok) {
-      // Try to parse FastAPI's {"detail": "..."} error body
       let message = `HTTP ${response.status}`;
       try {
         const body = (await response.json()) as { detail?: unknown };
-        if (typeof body.detail === 'string') {
-          message = body.detail;
-        } else if (body.detail !== undefined) {
-          message = JSON.stringify(body.detail);
-        }
-      } catch {
-        try {
-          const text = (await response.text()).trim();
-          if (text) message = text;
-        } catch { /* keep default */ }
-      }
+        if (typeof body.detail === 'string') message = body.detail;
+        else if (body.detail !== undefined) message = JSON.stringify(body.detail);
+      } catch { /* keep default */ }
       throw new ApiError(response.status, message, path);
     }
-
     return (await response.json()) as T;
   } catch (err) {
-    clearTimeout(timerId);
     if (err instanceof ApiError) throw err;
-
-    // AbortError = timeout; TypeError = network error
-    const message =
-      err instanceof DOMException && err.name === 'AbortError'
-        ? 'Request timed out'
-        : err instanceof Error
-          ? err.message
-          : 'Unknown network error';
-
+    if (options.signal?.aborted) throw new ApiError(0, 'Request cancelled', path, true);
+    const message = timedOut
+      ? 'Request timed out'
+      : err instanceof Error ? err.message : 'Unknown network error';
     throw new ApiError(0, message, path);
+  } finally {
+    clearTimeout(timerId);
+    options.signal?.removeEventListener('abort', onCallerAbort);
   }
 }
 
-// ── Query builder ─────────────────────────────────────────────────────────────
+type QueryFilters = IndustryQueryFilters & { q?: string; limit?: number; offset?: number; geometry?: string };
 
-function buildQuery(
-  filters: IndustryQueryFilters & { q?: string; limit?: number },
-): string {
+export function buildQuery(filters: QueryFilters): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {
-    if (value !== undefined && value !== null && value !== '') {
-      params.set(key, String(value));
-    }
+    if (value !== undefined && value !== null && value !== '') params.set(key, String(value));
   }
   const qs = params.toString();
   return qs ? `?${qs}` : '';
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
-
-/**
- * Probe the backend health endpoint.
- * Resolves with `{ status, data_mode }` or rejects with ApiError (status 0)
- * if the backend is unreachable within 3 seconds.
- */
-export async function checkHealth(): Promise<{ status: string; data_mode: string }> {
-  return requestJson<{ status: string; data_mode: string }>(
-    '/health',
-    HEALTH_TIMEOUT_MS,
-  );
+export function checkHealth(signal?: AbortSignal): Promise<HealthResponse> {
+  return requestJson('/health', { timeoutMs: HEALTH_TIMEOUT_MS, signal });
 }
 
-export async function fetchIndustries(
-  filters: IndustryQueryFilters = {},
+export function fetchIndustries(
+  filters: QueryFilters = {},
+  signal?: AbortSignal,
 ): Promise<FeatureCollection<IndustrialSiteFeature>> {
-  return requestJson(`/industries${buildQuery(filters)}`);
+  return requestJson(`/industries${buildQuery(filters)}`, { signal });
 }
 
-export async function searchIndustries(
+export function searchIndustries(
   queryText: string,
-  filters: IndustryQueryFilters = {},
+  filters: QueryFilters = {},
+  signal?: AbortSignal,
 ): Promise<FeatureCollection<IndustrialSiteFeature>> {
-  return requestJson(`/industries/search${buildQuery({ ...filters, q: queryText })}`);
+  return requestJson(`/industries/search${buildQuery({ ...filters, q: queryText })}`, { signal });
 }
 
-export async function fetchIndustrialSite(
-  siteId: string,
-): Promise<IndustrialSiteFeature> {
-  return requestJson(`/industries/${encodeURIComponent(siteId)}`);
+export function fetchIndustrialSite(siteId: string, signal?: AbortSignal): Promise<IndustrialSiteFeature> {
+  return requestJson(`/industries/${encodeURIComponent(siteId)}`, { signal });
 }
 
-export async function fetchBoundaries(
+export function fetchBoundaries(
   level: 'india' | 'states' | 'districts',
+  params: { state?: string; bbox?: string; simplify?: number } = {},
+  signal?: AbortSignal,
 ): Promise<FeatureCollection<BoundaryFeature>> {
-  return requestJson(`/boundaries/${level}`);
+  return requestJson(`/boundaries/${level}${buildQuery(params as QueryFilters)}`, { signal });
 }
 
-export async function fetchStatistics(): Promise<StatisticsResponse> {
-  return requestJson('/statistics');
+export function fetchStatistics(
+  filters: IndustryQueryFilters & { q?: string } = {},
+  signal?: AbortSignal,
+): Promise<StatisticsResponse> {
+  return requestJson(`/statistics${buildQuery(filters)}`, { signal });
 }
 
-export async function fetchFilterOptions(): Promise<FilterOptionsResponse> {
-  return requestJson('/filters/options');
+export function fetchFilterOptions(state?: string, signal?: AbortSignal): Promise<FilterOptionsResponse> {
+  return requestJson(`/filters/options${buildQuery({ state } as QueryFilters)}`, { signal });
+}
+
+export function fetchSyncStatus(signal?: AbortSignal): Promise<SyncStatusResponse> {
+  return requestJson('/sync/status', { timeoutMs: HEALTH_TIMEOUT_MS * 2, signal });
+}
+
+/** Absolute-or-relative URL for a full (unpaginated) export of everything matching the filters. */
+export function exportUrl(format: 'csv' | 'geojson', filters: IndustryQueryFilters & { q?: string }): string {
+  return `${API_BASE}/industries/export${buildQuery({ ...filters, format } as QueryFilters)}`;
+}
+
+// ── Thermal sources ───────────────────────────────────────────────────────────
+
+export function fetchThermalClasses(signal?: AbortSignal): Promise<{ classes: ThermalClassInfo[] }> {
+  return requestJson('/thermal/classes', { signal });
+}
+
+export function fetchThermalStatus(signal?: AbortSignal): Promise<ThermalStatus> {
+  return requestJson('/thermal/status', { timeoutMs: HEALTH_TIMEOUT_MS * 2, signal });
+}
+
+export function fetchThermalSources(
+  filters: ThermalFilters & { limit?: number } = {},
+  signal?: AbortSignal,
+): Promise<FeatureCollection<ThermalFeature>> {
+  return requestJson(`/thermal/sources${buildQuery({ limit: 5000, ...filters } as QueryFilters)}`, { signal });
+}
+
+export function fetchThermalSource(id: string, signal?: AbortSignal): Promise<ThermalFeature> {
+  return requestJson(`/thermal/sources/${encodeURIComponent(id)}`, { signal });
+}
+
+export function fetchThermalStats(filters: ThermalFilters = {}, signal?: AbortSignal): Promise<ThermalStats> {
+  return requestJson(`/thermal/stats${buildQuery(filters as QueryFilters)}`, { signal });
+}
+
+export function thermalExportUrl(format: 'csv' | 'geojson', filters: ThermalFilters): string {
+  return `${API_BASE}/thermal/export${buildQuery({ ...filters, format } as QueryFilters)}`;
 }

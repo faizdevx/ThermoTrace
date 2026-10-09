@@ -657,10 +657,6 @@ def _to_bbox_tuple(bbox: str | None) -> tuple[float, float, float, float] | None
 
 
 def filter_sites(raw_filters: dict[str, str | None]) -> list[dict[str, Any]]:
-    from backend.app.config import get_settings  # noqa: PLC0415
-    if get_settings().data_mode == "postgis":
-        from backend.app.services import postgis_repo  # noqa: PLC0415
-        return postgis_repo.filter_sites(raw_filters)
     filters = CatalogFilters(
         bbox=_to_bbox_tuple(raw_filters.get("bbox")),
         state=raw_filters.get("state"),
@@ -674,20 +670,12 @@ def filter_sites(raw_filters: dict[str, str | None]) -> list[dict[str, Any]]:
 
 
 def search_sites(query: str, raw_filters: dict[str, str | None] | None = None) -> list[dict[str, Any]]:
-    from backend.app.config import get_settings  # noqa: PLC0415
-    if get_settings().data_mode == "postgis":
-        from backend.app.services import postgis_repo  # noqa: PLC0415
-        return postgis_repo.search_sites(query, raw_filters)
     filters = dict(raw_filters or {})
     filters["q"] = query
     return filter_sites(filters)
 
 
 def get_site_by_id(site_id: str) -> dict[str, Any] | None:
-    from backend.app.config import get_settings  # noqa: PLC0415
-    if get_settings().data_mode == "postgis":
-        from backend.app.services import postgis_repo  # noqa: PLC0415
-        return postgis_repo.get_site_by_id(site_id)
     for site in get_sites():
         if site["site_id"] == site_id:
             return site
@@ -745,10 +733,6 @@ def to_feature_collection(sites: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def get_statistics() -> dict[str, Any]:
-    from backend.app.config import get_settings  # noqa: PLC0415
-    if get_settings().data_mode == "postgis":
-        from backend.app.services import postgis_repo  # noqa: PLC0415
-        return postgis_repo.get_statistics()
     sites = get_sites()
     total_sites = len(sites)
     by_state = Counter(site["state"] for site in sites)
@@ -777,10 +761,6 @@ def get_statistics() -> dict[str, Any]:
 
 
 def get_filter_options() -> dict[str, list[str]]:
-    from backend.app.config import get_settings  # noqa: PLC0415
-    if get_settings().data_mode == "postgis":
-        from backend.app.services import postgis_repo  # noqa: PLC0415
-        return postgis_repo.get_filter_options()
     sites = get_sites()
     return {
         "states": sorted({site["state"] for site in sites}),

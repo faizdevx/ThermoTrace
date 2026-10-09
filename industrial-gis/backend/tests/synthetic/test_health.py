@@ -7,7 +7,13 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+import pytest
+
 from backend.app.main import app
+
+pytestmark = pytest.mark.skipif(
+    __import__("os").getenv("DATA_MODE") != "synthetic", reason="synthetic-mode tests"
+)
 
 client = TestClient(app)
 
@@ -31,8 +37,5 @@ def test_health_endpoint_data_mode_matches_env(monkeypatch: object) -> None:
     """Default DATA_MODE in test environment should be 'synthetic'."""
     response = client.get("/api/health")
     data = response.json()
-    # Unless the tester has explicitly set DATA_MODE=postgis in their env,
-    # the test suite runs against the synthetic dataset.
-    import os
-    expected = os.getenv("DATA_MODE", "synthetic")
-    assert data["data_mode"] == expected
+    assert data["data_mode"] == "synthetic"
+    assert data["synthetic"] is True

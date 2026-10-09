@@ -1,305 +1,438 @@
-"""
-PostGIS repository — queries the ``industrial_sites`` table defined in
-``industrial-data/sql/schema.sql``.
+"""PostGIS repository for the live ThermoTrace dataset.
 
-Schema notes (do NOT add a second CREATE TABLE — this reads the existing one):
-  • industrial_sites.geometry  : geometry(GEOMETRY, 4326), GIST-indexed
-  • industrial_sites.operational_status : TEXT  (frontend calls this 'status')
-  • industrial_sites.osm_ids / government_ids : JSONB arrays
-  • industrial_sites.site_id   : TEXT UNIQUE
+Reads ``industrial_sites`` (maintained by the sync worker, see industrial-data/src/sync).
+Only ``is_active`` rows are ever served: a site whose source object was deleted or
+re-tagged stays in the table for provenance but disappears from every query here.
 
-Spatial bbox queries use:
-  ST_Intersects(geometry, ST_MakeEnvelope(west, south, east, north, 4326))
-which is sargable — the planner will use idx_industrial_sites_geometry_gist.
+Counting rules (used by /api/industries ``meta.total``, /api/statistics and exports):
+every number counts ACTIVE sites matching the same filter set (state, district,
+industry_type, status, confidence, q, bbox). Nothing is hard-coded.
 
-This module is only imported / executed when DATA_MODE=postgis.
+Pagination: ``ORDER BY site_id`` (stable key) with limit/offset. Offset paging is not a
+snapshot; every response carries ``meta.revision`` so a client can tell the dataset
+changed between pages. Exports run in a single REPEATABLE READ transaction, so they are
+internally consistent and never skip or duplicate rows.
 """
 from __future__ import annotations
 
+import csv
+import io
 import json
 import logging
-from typing import Any
+import re
+from typing import Any, Iterator
 
 from sqlalchemy import text
+from sqlalchemy.engine import Connection
 
 from backend.app.db import get_engine
 
 logger = logging.getLogger(__name__)
 
-# ── Column list shared by all SELECT queries ─────────────────────────────────
-# ST_Centroid handles Point, Polygon, and MultiPolygon transparently.
-# SRID 4326 → lon/lat in degrees.
-_SELECT_COLS = """
+SEARCH_COLUMNS = ("name", "industry_type", "state", "district", "address")
+
+# Properties shared by list rows, details and exports.
+_PROP_COLS = """
     site_id,
-    COALESCE(name, '')                              AS name,
-    normalized_name,
-    COALESCE(industry_type, '')                     AS industry_type,
-    ST_X(ST_Centroid(geometry))                     AS longitude,
-    ST_Y(ST_Centroid(geometry))                     AS latitude,
-    COALESCE(state, '')                             AS state,
-    COALESCE(district, '')                          AS district,
-    COALESCE(address, '')                           AS address,
-    COALESCE(operational_status, '')                AS status,
-    COALESCE(osm_ids, '[]'::jsonb)                  AS osm_ids,
-    COALESCE(government_ids, '[]'::jsonb)           AS government_ids,
-    source_count,
-    match_score,
-    COALESCE(match_confidence, 'low')               AS match_confidence,
-    COALESCE(match_method, '')                      AS match_method,
-    review_required,
-    last_verified::text                             AS last_verified
+    COALESCE(name, '')                      AS name,
+    COALESCE(normalized_name, '')           AS normalized_name,
+    COALESCE(industry_type, '')             AS industry_type,
+    COALESCE(normalized_industry_type, '')  AS normalized_industry_type,
+    COALESCE(operational_status, '')        AS status,
+    COALESCE(state, '')                     AS state,
+    COALESCE(district, '')                  AS district,
+    COALESCE(address, '')                   AS address,
+    COALESCE(osm_ids, '[]'::jsonb)          AS osm_ids,
+    COALESCE(government_ids, '[]'::jsonb)   AS government_ids,
+    COALESCE(source_count, 0)               AS source_count,
+    COALESCE(match_score, 0)                AS match_score,
+    COALESCE(match_confidence, 'unmatched') AS match_confidence,
+    COALESCE(match_method, 'osm_only')      AS match_method,
+    COALESCE(review_required, FALSE)        AS review_required,
+    COALESCE(last_verified::text, '')       AS last_verified,
+    COALESCE(evidence_level, 'low')         AS evidence_level,
+    COALESCE(evidence_score, 0)             AS evidence_score,
+    COALESCE(feature_class, '')             AS feature_class,
+    COALESCE(geometry_type, '')             AS geometry_type,
+    COALESCE(primary_source, 'openstreetmap') AS primary_source,
+    COALESCE(source_ref, '')                AS source_ref,
+    COALESCE(source_url, '')                AS source_url,
+    source_updated_at,
+    osm_version,
+    revision,
+    updated_at
 """
 
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _normalize(value: str | None) -> str:
-    return " ".join((value or "").strip().lower().split())
+_POINT = "ST_PointOnSurface(geometry)"
 
 
-def _parse_jsonb(value: Any) -> list:
-    """Coerce a JSONB DB value (could be list, str, or None) to a Python list."""
-    if value is None:
-        return []
-    if isinstance(value, list):
-        return value
-    if isinstance(value, str):
-        try:
-            result = json.loads(value)
-            return result if isinstance(result, list) else []
-        except (ValueError, TypeError):
-            return []
-    return []
+class InvalidFilter(ValueError):
+    """Raised for malformed filter input (maps to HTTP 422)."""
 
 
-def _row_to_site_dict(row: Any) -> dict[str, Any]:
-    """Convert a SQLAlchemy RowMapping to the canonical site dict used by catalog.py."""
-    osm_ids = _parse_jsonb(row["osm_ids"])
-    gov_ids = _parse_jsonb(row["government_ids"])
-
-    data_sources: list[str] = []
-    if osm_ids:
-        data_sources.append("openstreetmap")
-    if gov_ids:
-        data_sources.append("government")
-
-    last_verified = row["last_verified"]
-    if last_verified is not None and not isinstance(last_verified, str):
-        last_verified = str(last_verified)
-
-    industry_type = row["industry_type"] or ""
-
-    return {
-        "site_id":                  row["site_id"],
-        "name":                     row["name"],
-        "normalized_name":          row["normalized_name"] or _normalize(row["name"]),
-        "industry_type":            industry_type,
-        "normalized_industry_type": _normalize(industry_type),
-        "latitude":                 float(row["latitude"] or 0.0),
-        "longitude":                float(row["longitude"] or 0.0),
-        "state":                    row["state"],
-        "district":                 row["district"],
-        "address":                  row["address"],
-        "status":                   row["status"],
-        "osm_ids":                  osm_ids,
-        "government_ids":           gov_ids,
-        "source_ids":               [f"osm:{i}" for i in osm_ids] + [f"gov:{i}" for i in gov_ids],
-        "data_sources":             data_sources,
-        "source_count":             int(row["source_count"] or 0),
-        "match_score":              float(row["match_score"] or 0.0),
-        "match_confidence":         row["match_confidence"],
-        "match_method":             row["match_method"],
-        "review_required":          bool(row["review_required"]),
-        "last_verified":            last_verified or "",
-    }
+def parse_bbox(value: str | None) -> tuple[float, float, float, float] | None:
+    """``west,south,east,north`` in degrees; raises InvalidFilter when malformed."""
+    if value is None or value == "":
+        return None
+    try:
+        west, south, east, north = (float(part) for part in value.split(","))
+    except ValueError as exc:
+        raise InvalidFilter("bbox must be four comma-separated numbers: west,south,east,north") from exc
+    if not all(-180 <= x <= 180 for x in (west, east)) or not all(-90 <= y <= 90 for y in (south, north)):
+        raise InvalidFilter("bbox coordinates out of range (lon -180..180, lat -90..90)")
+    if west >= east or south >= north:
+        raise InvalidFilter("bbox must satisfy west < east and south < north")
+    return west, south, east, north
 
 
-def _build_where(raw_filters: dict[str, Any]) -> tuple[str, dict[str, Any]]:
-    """
-    Construct a safe parameterised WHERE clause from raw filter dict.
-    Returns (where_sql_fragment, params_dict).
-    """
-    conditions: list[str] = ["1=1"]
+def _like(value: str) -> str:
+    escaped = re.sub(r"([\\%_])", r"\\\1", value.strip())
+    return f"%{escaped}%"
+
+
+def build_where(filters: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    """Parameterised WHERE over active sites. Raises InvalidFilter on malformed input."""
+    conditions = ["is_active"]
     params: dict[str, Any] = {}
-
-    # ── Spatial bbox — uses GIST index ──────────────────────────────────────
-    bbox_str = raw_filters.get("bbox")
-    if bbox_str:
-        try:
-            parts = [float(v) for v in str(bbox_str).split(",")]
-            if len(parts) == 4:
-                west, south, east, north = parts
-                conditions.append(
-                    "ST_Intersects("
-                    "  geometry,"
-                    "  ST_MakeEnvelope(:bbox_west, :bbox_south, :bbox_east, :bbox_north, 4326)"
-                    ")"
-                )
-                params["bbox_west"]  = west
-                params["bbox_south"] = south
-                params["bbox_east"]  = east
-                params["bbox_north"] = north
-        except (ValueError, TypeError):
-            logger.warning("Ignoring invalid bbox value: %r", bbox_str)
-
-    # ── Attribute filters — all case-insensitive ─────────────────────────────
-    if raw_filters.get("state"):
-        conditions.append("lower(state) = lower(:state)")
-        params["state"] = raw_filters["state"]
-
-    if raw_filters.get("district"):
-        conditions.append("lower(district) = lower(:district)")
-        params["district"] = raw_filters["district"]
-
-    if raw_filters.get("industry_type"):
-        conditions.append("lower(industry_type) = lower(:industry_type)")
-        params["industry_type"] = raw_filters["industry_type"]
-
-    if raw_filters.get("status"):
-        conditions.append("lower(operational_status) = lower(:status)")
-        params["status"] = raw_filters["status"]
-
-    if raw_filters.get("confidence"):
-        conditions.append("lower(match_confidence) = lower(:confidence)")
-        params["confidence"] = raw_filters["confidence"]
-
-    # ── Full-text search (shared with search_sites) ──────────────────────────
-    if raw_filters.get("q"):
-        conditions.append(
-            "("
-            "  name            ILIKE :q_pattern"
-            "  OR normalized_name ILIKE :q_pattern"
-            "  OR industry_type   ILIKE :q_pattern"
-            "  OR state           ILIKE :q_pattern"
-            "  OR district        ILIKE :q_pattern"
-            "  OR address         ILIKE :q_pattern"
-            ")"
-        )
-        params["q_pattern"] = f"%{raw_filters['q']}%"
-
+    bbox = parse_bbox(filters.get("bbox"))
+    if bbox:
+        conditions.append("ST_Intersects(geometry, ST_MakeEnvelope(:bw, :bs, :be, :bn, 4326))")
+        params.update(bw=bbox[0], bs=bbox[1], be=bbox[2], bn=bbox[3])
+    for key, column in (
+        ("state", "state"), ("district", "district"),
+        ("industry_type", "industry_type"), ("status", "operational_status"),
+        ("confidence", "evidence_level"),
+    ):
+        value = filters.get(key)
+        if value:
+            conditions.append(f"lower({column}) = lower(:{key})")
+            params[key] = value
+    query = filters.get("q")
+    if query and query.strip():
+        clauses = " OR ".join(f"{col} ILIKE :q ESCAPE '\\'" for col in SEARCH_COLUMNS)
+        conditions.append(f"({clauses})")
+        params["q"] = _like(query)
     return " AND ".join(conditions), params
 
 
-# ── Public API (mirrors the functions in catalog.py) ─────────────────────────
-
-def filter_sites(raw_filters: dict[str, Any]) -> list[dict[str, Any]]:
-    """Return sites matching all supplied filters; bbox uses spatial index."""
-    where, params = _build_where(raw_filters)
-    sql = text(
-        f"SELECT {_SELECT_COLS}"
-        f"FROM industrial_sites"
-        f" WHERE {where}"
-        f" ORDER BY name"
-    )
-    try:
-        with get_engine().connect() as conn:
-            rows = conn.execute(sql, params).mappings().all()
-        return [_row_to_site_dict(r) for r in rows]
-    except Exception as exc:
-        logger.error("PostGIS filter_sites error: %s", exc, exc_info=True)
-        raise
+def _iso(value: Any) -> str | None:
+    return value.isoformat() if value is not None else None
 
 
-def search_sites(query: str, raw_filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-    """Full-text ILIKE search combined with any attribute/bbox filters."""
-    filters = dict(raw_filters or {})
-    filters["q"] = query
-    return filter_sites(filters)
-
-
-def get_site_by_id(site_id: str) -> dict[str, Any] | None:
-    """Fetch a single site by its unique site_id."""
-    sql = text(
-        f"SELECT {_SELECT_COLS}"
-        f"FROM industrial_sites"
-        f" WHERE site_id = :site_id"
-    )
-    try:
-        with get_engine().connect() as conn:
-            row = conn.execute(sql, {"site_id": site_id}).mappings().first()
-        return _row_to_site_dict(row) if row else None
-    except Exception as exc:
-        logger.error("PostGIS get_site_by_id error: %s", exc, exc_info=True)
-        raise
-
-
-def get_statistics() -> dict[str, Any]:
-    """Aggregate statistics from the industrial_sites table."""
-    agg_sql = text("""
-        SELECT
-            COUNT(*)                                                       AS total_sites,
-            COUNT(*) FILTER (WHERE jsonb_array_length(osm_ids)        > 0) AS osm_records,
-            COUNT(*) FILTER (WHERE jsonb_array_length(government_ids) > 0) AS government_records,
-            COUNT(*) FILTER (WHERE source_count > 1)                       AS matched_records,
-            COUNT(*) FILTER (WHERE match_confidence = 'high')              AS high_confidence_matches
-        FROM industrial_sites
-    """)
-    by_state_sql = text("""
-        SELECT COALESCE(state, 'Unknown') AS grp, COUNT(*) AS cnt
-        FROM industrial_sites
-        GROUP BY state
-        ORDER BY state
-    """)
-    by_type_sql = text("""
-        SELECT COALESCE(industry_type, 'Unknown') AS grp, COUNT(*) AS cnt
-        FROM industrial_sites
-        GROUP BY industry_type
-        ORDER BY industry_type
-    """)
-    by_status_sql = text("""
-        SELECT COALESCE(operational_status, 'unknown') AS grp, COUNT(*) AS cnt
-        FROM industrial_sites
-        GROUP BY operational_status
-        ORDER BY operational_status
-    """)
-    by_confidence_sql = text("""
-        SELECT COALESCE(match_confidence, 'unknown') AS grp, COUNT(*) AS cnt
-        FROM industrial_sites
-        GROUP BY match_confidence
-        ORDER BY match_confidence
-    """)
-    try:
-        with get_engine().connect() as conn:
-            agg     = conn.execute(agg_sql).mappings().first()
-            by_state   = {r["grp"]: int(r["cnt"]) for r in conn.execute(by_state_sql).mappings()}
-            by_type    = {r["grp"]: int(r["cnt"]) for r in conn.execute(by_type_sql).mappings()}
-            by_status  = {r["grp"]: int(r["cnt"]) for r in conn.execute(by_status_sql).mappings()}
-            by_conf    = {r["grp"]: int(r["cnt"]) for r in conn.execute(by_confidence_sql).mappings()}
-
-        total   = int(agg["total_sites"])
-        matched = int(agg["matched_records"])
-        return {
-            "total_sites":           total,
-            "by_state":              by_state,
-            "by_industry_type":      by_type,
-            "by_status":             by_status,
-            "osm_records":           int(agg["osm_records"]),
-            "government_records":    int(agg["government_records"]),
-            "matched_records":       matched,
-            "unmatched_records":     total - matched,
-            "high_confidence_matches": int(agg["high_confidence_matches"]),
-            "confidence_distribution": by_conf,
-        }
-    except Exception as exc:
-        logger.error("PostGIS get_statistics error: %s", exc, exc_info=True)
-        raise
-
-
-def get_filter_options() -> dict[str, list[str]]:
-    """Return distinct values for each filterable column, for dropdown population."""
-    queries: dict[str, str] = {
-        "states":            "SELECT DISTINCT state           FROM industrial_sites WHERE state           IS NOT NULL ORDER BY state",
-        "districts":         "SELECT DISTINCT district        FROM industrial_sites WHERE district        IS NOT NULL ORDER BY district",
-        "industry_types":    "SELECT DISTINCT industry_type   FROM industrial_sites WHERE industry_type   IS NOT NULL ORDER BY industry_type",
-        "statuses":          "SELECT DISTINCT operational_status FROM industrial_sites WHERE operational_status IS NOT NULL ORDER BY operational_status",
-        "confidence_levels": "SELECT DISTINCT match_confidence FROM industrial_sites WHERE match_confidence IS NOT NULL ORDER BY match_confidence",
+def _row_to_properties(row: Any, lon: float | None, lat: float | None) -> dict[str, Any]:
+    osm_ids = list(row["osm_ids"] or [])
+    gov_ids = list(row["government_ids"] or [])
+    sources = []
+    if osm_ids:
+        sources.append("openstreetmap")
+    if gov_ids:
+        sources.append("government")
+    return {
+        "site_id": row["site_id"],
+        "name": row["name"],
+        "normalized_name": row["normalized_name"],
+        "industry_type": row["industry_type"],
+        "normalized_industry_type": row["normalized_industry_type"],
+        "status": row["status"],
+        "state": row["state"],
+        "district": row["district"],
+        "address": row["address"],
+        "latitude": lat,
+        "longitude": lon,
+        "osm_ids": osm_ids,
+        "government_ids": gov_ids,
+        "source_ids": [f"osm:{i}" for i in osm_ids] + [f"gov:{i}" for i in gov_ids],
+        "data_sources": sources,
+        "source_count": int(row["source_count"]),
+        "match_score": float(row["match_score"]),
+        "match_confidence": row["match_confidence"],
+        "match_method": row["match_method"],
+        "review_required": bool(row["review_required"]),
+        "last_verified": row["last_verified"],
+        "evidence_level": row["evidence_level"],
+        "evidence_score": int(row["evidence_score"]),
+        "feature_class": row["feature_class"],
+        "geometry_type": row["geometry_type"],
+        "primary_source": row["primary_source"],
+        "source_ref": row["source_ref"],
+        "source_url": row["source_url"],
+        "source_updated_at": _iso(row["source_updated_at"]),
+        "osm_version": row["osm_version"],
+        "revision": int(row["revision"] or 0),
+        "updated_at": _iso(row["updated_at"]),
     }
-    try:
-        with get_engine().connect() as conn:
-            return {
-                key: [row[0] for row in conn.execute(text(sql))]
-                for key, sql in queries.items()
-            }
-    except Exception as exc:
-        logger.error("PostGIS get_filter_options error: %s", exc, exc_info=True)
-        raise
+
+
+def get_revision(conn: Connection | None = None) -> dict[str, Any]:
+    sql = text("SELECT revision, changed_at FROM data_revision WHERE id = 1")
+    if conn is None:
+        with get_engine().connect() as c:
+            row = c.execute(sql).first()
+    else:
+        row = conn.execute(sql).first()
+    if row is None:
+        return {"revision": 0, "changed_at": None}
+    return {"revision": int(row[0]), "changed_at": _iso(row[1])}
+
+
+def list_sites(
+    filters: dict[str, Any], limit: int, offset: int, geometry: str = "point"
+) -> tuple[list[dict[str, Any]], int, int]:
+    """Return (features, total_matching, revision)."""
+    where, params = build_where(filters)
+    geom_sql = "ST_AsGeoJSON(geometry, 6)" if geometry == "full" else f"ST_AsGeoJSON({_POINT}, 6)"
+    list_sql = text(
+        f"SELECT {_PROP_COLS}, {geom_sql}::json AS geom, "
+        f"ST_X({_POINT}) AS lon, ST_Y({_POINT}) AS lat "
+        f"FROM industrial_sites WHERE {where} ORDER BY site_id LIMIT :limit OFFSET :offset"
+    )
+    count_sql = text(f"SELECT COUNT(*) FROM industrial_sites WHERE {where}")
+    with get_engine().connect() as conn:
+        # One snapshot for rows + count + revision so meta is self-consistent.
+        conn.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY"))
+        total = int(conn.execute(count_sql, params).scalar_one())
+        rows = conn.execute(list_sql, {**params, "limit": limit, "offset": offset}).mappings().all()
+        revision = get_revision(conn)["revision"]
+    features = [
+        {"type": "Feature", "geometry": row["geom"],
+         "properties": _row_to_properties(row, row["lon"], row["lat"])}
+        for row in rows
+    ]
+    return features, total, revision
+
+
+def get_site(site_id: str) -> dict[str, Any] | None:
+    """Single site with FULL geometry, tags and area. Inactive sites are reported as gone (None)."""
+    sql = text(
+        f"SELECT {_PROP_COLS}, ST_AsGeoJSON(geometry, 7)::json AS geom, tags, "
+        f"ST_X({_POINT}) AS lon, ST_Y({_POINT}) AS lat, "
+        "CASE WHEN GeometryType(geometry) LIKE '%POLYGON' "
+        "     THEN ST_Area(geometry::geography) END AS area_m2 "
+        "FROM industrial_sites WHERE site_id = :site_id AND is_active"
+    )
+    with get_engine().connect() as conn:
+        row = conn.execute(sql, {"site_id": site_id}).mappings().first()
+    if row is None:
+        return None
+    props = _row_to_properties(row, row["lon"], row["lat"])
+    props["tags"] = row["tags"] or {}
+    props["area_m2"] = float(row["area_m2"]) if row["area_m2"] is not None else None
+    return {"type": "Feature", "geometry": row["geom"], "properties": props}
+
+
+def get_statistics(filters: dict[str, Any]) -> dict[str, Any]:
+    """Aggregates over ACTIVE sites matching ``filters`` (scope = the filter set)."""
+    where, params = build_where(filters)
+
+    def grouped(conn: Connection, column: str, fallback: str) -> dict[str, int]:
+        sql = text(
+            f"SELECT COALESCE(NULLIF({column}, ''), :fb) AS grp, COUNT(*) AS cnt "
+            f"FROM industrial_sites WHERE {where} GROUP BY 1 ORDER BY cnt DESC, grp"
+        )
+        return {r["grp"]: int(r["cnt"]) for r in conn.execute(sql, {**params, "fb": fallback}).mappings()}
+
+    with get_engine().connect() as conn:
+        conn.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY"))
+        agg = conn.execute(text(
+            "SELECT COUNT(*) AS total, "
+            "COUNT(*) FILTER (WHERE jsonb_array_length(COALESCE(osm_ids,'[]'::jsonb)) > 0) AS osm, "
+            "COUNT(*) FILTER (WHERE jsonb_array_length(COALESCE(government_ids,'[]'::jsonb)) > 0) AS gov, "
+            "COUNT(*) FILTER (WHERE source_count > 1) AS matched, "
+            "COUNT(*) FILTER (WHERE match_confidence = 'high') AS high_match, "
+            "COUNT(DISTINCT state) AS n_states, COUNT(DISTINCT district) AS n_districts "
+            f"FROM industrial_sites WHERE {where}"), params).mappings().one()
+        stats = {
+            "by_state": grouped(conn, "state", "Unassigned"),
+            "by_district": dict(list(grouped(conn, "district", "Unassigned").items())[:50]),
+            "by_industry_type": grouped(conn, "industry_type", "Unclassified"),
+            "by_status": grouped(conn, "operational_status", "unknown"),
+            "by_feature_class": grouped(conn, "feature_class", "unknown"),
+            "confidence_distribution": grouped(conn, "evidence_level", "unknown"),
+        }
+        revision = get_revision(conn)["revision"]
+    total = int(agg["total"])
+    return {
+        "total_sites": total,
+        **stats,
+        "osm_records": int(agg["osm"]),
+        "government_records": int(agg["gov"]),
+        "matched_records": int(agg["matched"]),
+        "unmatched_records": total - int(agg["matched"]),
+        "high_confidence_matches": int(agg["high_match"]),
+        "distinct_states": int(agg["n_states"]),
+        "distinct_districts": int(agg["n_districts"]),
+        "revision": revision,
+        "scope": {
+            "description": "Active sites matching the supplied filters (all of the loaded dataset when none).",
+            "filters": {k: v for k, v in filters.items() if v},
+        },
+    }
+
+
+def get_filter_options(state: str | None = None) -> dict[str, list[str]]:
+    """Distinct values among ACTIVE sites; ``districts`` cascades from ``state`` when given."""
+    def distinct(conn: Connection, column: str, extra: str = "", params: dict | None = None) -> list[str]:
+        sql = text(
+            f"SELECT DISTINCT {column} FROM industrial_sites "
+            f"WHERE is_active AND {column} IS NOT NULL AND {column} <> '' {extra} ORDER BY 1"
+        )
+        return [r[0] for r in conn.execute(sql, params or {})]
+
+    with get_engine().connect() as conn:
+        districts = (
+            distinct(conn, "district", "AND lower(state) = lower(:state)", {"state": state})
+            if state else distinct(conn, "district")
+        )
+        return {
+            "states": distinct(conn, "state"),
+            "districts": districts,
+            "industry_types": distinct(conn, "industry_type"),
+            "statuses": distinct(conn, "operational_status"),
+            "confidence_levels": [v for v in ("high", "medium", "low")
+                                  if v in distinct(conn, "evidence_level")],
+            "feature_classes": distinct(conn, "feature_class"),
+        }
+
+
+# ── Exports ────────────────────────────────────────────────────────────────
+
+CSV_COLUMNS = [
+    "site_id", "name", "industry_type", "feature_class", "status", "state", "district", "address",
+    "latitude", "longitude", "geometry_type", "evidence_level", "evidence_score",
+    "primary_source", "source_ref", "source_url", "osm_version", "source_updated_at",
+    "match_method", "revision",
+]
+_EXPORT_BATCH = 2000
+
+
+def count_matching(filters: dict[str, Any]) -> int:
+    where, params = build_where(filters)
+    with get_engine().connect() as conn:
+        return int(conn.execute(text(f"SELECT COUNT(*) FROM industrial_sites WHERE {where}"), params).scalar_one())
+
+
+def _stream_rows(filters: dict[str, Any], full_geometry: bool) -> Iterator[Any]:
+    where, params = build_where(filters)
+    geom = "ST_AsGeoJSON(geometry, 6)" if full_geometry else f"ST_AsGeoJSON({_POINT}, 6)"
+    sql = text(
+        f"SELECT {_PROP_COLS}, {geom}::json AS geom, ST_X({_POINT}) AS lon, ST_Y({_POINT}) AS lat "
+        f"FROM industrial_sites WHERE {where} ORDER BY site_id"
+    )
+    with get_engine().connect() as conn:
+        conn = conn.execution_options(stream_results=True, max_row_buffer=_EXPORT_BATCH)
+        conn.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY"))
+        result = conn.execute(sql, params)
+        for row in result.mappings():
+            yield row
+
+
+def export_csv(filters: dict[str, Any]) -> Iterator[str]:
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(CSV_COLUMNS)
+    yield buffer.getvalue()
+    for row in _stream_rows(filters, full_geometry=False):
+        props = _row_to_properties(row, row["lon"], row["lat"])
+        buffer.seek(0)
+        buffer.truncate(0)
+        writer.writerow([_csv_safe(props.get(col)) for col in CSV_COLUMNS])
+        yield buffer.getvalue()
+
+
+def _csv_safe(value: Any) -> Any:
+    """Neutralise spreadsheet formula injection for text taken from OSM tags."""
+    if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + value
+    return value
+
+
+def export_geojson(filters: dict[str, Any]) -> Iterator[str]:
+    yield '{"type":"FeatureCollection","features":['
+    first = True
+    for row in _stream_rows(filters, full_geometry=True):
+        feature = {"type": "Feature", "geometry": row["geom"],
+                   "properties": _row_to_properties(row, row["lon"], row["lat"])}
+        yield ("" if first else ",") + json.dumps(feature, separators=(",", ":"), default=str)
+        first = False
+    yield "]}"
+
+
+# ── Boundaries ─────────────────────────────────────────────────────────────
+
+_BOUNDARY_TABLES = {"india": "india_boundary", "states": "states", "districts": "districts"}
+_DEFAULT_SIMPLIFY = {"india": 0.02, "states": 0.01, "districts": 0.004}
+
+
+def get_boundaries(level: str, state: str | None, bbox: str | None, simplify: float | None) -> dict[str, Any]:
+    table = _BOUNDARY_TABLES[level]
+    tolerance = simplify if simplify is not None else _DEFAULT_SIMPLIFY[level]
+    conditions = ["TRUE"]
+    params: dict[str, Any] = {"tol": tolerance, "level": level}
+    box = parse_bbox(bbox)
+    if box:
+        conditions.append("ST_Intersects(b.geometry, ST_MakeEnvelope(:bw, :bs, :be, :bn, 4326))")
+        params.update(bw=box[0], bs=box[1], be=box[2], bn=box[3])
+    join = ""
+    if state and level == "districts":
+        join = "JOIN states st ON lower(st.name) = lower(:state) AND ST_Intersects(st.geometry, ST_PointOnSurface(b.geometry))"
+        params["state"] = state
+    elif state and level == "states":
+        conditions.append("lower(b.name) = lower(:state)")
+        params["state"] = state
+    sql = text(
+        f"SELECT b.name, b.source_id, b.source, "
+        f"ST_AsGeoJSON(ST_SimplifyPreserveTopology(b.geometry, :tol), 5)::json AS geom "
+        f"FROM {table} b {join} WHERE {' AND '.join(conditions)} ORDER BY b.name"
+    )
+    with get_engine().connect() as conn:
+        rows = conn.execute(sql, params).mappings().all()
+    return {
+        "type": "FeatureCollection",
+        "features": [
+            {"type": "Feature", "geometry": r["geom"],
+             "properties": {"boundary_level": level, "name": r["name"],
+                            "source_id": r["source_id"], "source": r["source"]}}
+            for r in rows
+        ],
+    }
+
+
+# ── Sync tracking ─────────────────────────────────────────────────────────
+
+def get_sync_rows() -> list[dict[str, Any]]:
+    sql = text("SELECT * FROM sync_state ORDER BY source")
+    with get_engine().connect() as conn:
+        return [dict(r) for r in conn.execute(sql).mappings()]
+
+
+def get_sync_history(source: str | None, limit: int) -> list[dict[str, Any]]:
+    sql = text(
+        "SELECT id, source, trigger, status, started_at, finished_at, from_cursor, to_cursor, "
+        "created_count, updated_count, deleted_count, skipped_count, failed_count, revision, "
+        "source_data_at, source_published_at, committed_at, ingest_latency_seconds, "
+        "duration_seconds, error FROM sync_runs "
+        "WHERE (:source IS NULL OR source = :source) ORDER BY id DESC LIMIT :limit"
+    )
+    with get_engine().connect() as conn:
+        return [dict(r) for r in conn.execute(sql, {"source": source, "limit": limit}).mappings()]
+
+
+def request_manual_sync(source: str) -> bool:
+    sql = text(
+        "UPDATE sync_state SET manual_requested_at = NOW() "
+        "WHERE source = :source AND enabled RETURNING source"
+    )
+    with get_engine().begin() as conn:
+        return conn.execute(sql, {"source": source}).first() is not None
+
+
+def dataset_summary() -> dict[str, Any]:
+    with get_engine().connect() as conn:
+        row = conn.execute(text(
+            "SELECT COUNT(*) FILTER (WHERE is_active) AS active, "
+            "COUNT(*) FILTER (WHERE NOT is_active) AS inactive, "
+            "(SELECT COUNT(*) FROM states) AS states, (SELECT COUNT(*) FROM districts) AS districts "
+            "FROM industrial_sites")).mappings().one()
+        rev = get_revision(conn)
+    return {"active_sites": int(row["active"]), "inactive_sites": int(row["inactive"]),
+            "boundary_states": int(row["states"]), "boundary_districts": int(row["districts"]), **rev}

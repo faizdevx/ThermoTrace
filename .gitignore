@@ -216,3 +216,15 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ── ThermoTrace additions ──
+node_modules/
+**/node_modules/
+industrial-gis/frontend/dist/
+data/
+*.pbf
+*.osc.gz
+logs/
+.env.*
+!.env.example
+!**/.env.example

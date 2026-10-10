@@ -1,0 +1,80 @@
+{
+  "sources": 2823,
+  "by_class": {
+    "agricultural_burning": 1983,
+    "vegetation_fire": 367,
+    "industrial_persistent": 152,
+    "industrial_fire_candidate": 126,
+    "unmapped_persistent": 106,
+    "other": 89
+  },
+  "median_frp_max_by_class": {
+    "agricultural_burning": 3.2,
+    "industrial_fire_candidate": 1.9,
+    "industrial_persistent": 3.1,
+    "other": 2.3,
+    "unmapped_persistent": 2.2,
+    "vegetation_fire": 3.4
+  },
+  "median_night_fraction_by_class": {
+    "agricultural_burning": 0.0,
+    "industrial_fire_candidate": 1.0,
+    "industrial_persistent": 1.0,
+    "other": 0.0,
+    "unmapped_persistent": 1.0,
+    "vegetation_fire": 0.0
+  },
+  "industrial_persistent_by_state": {
+    "Jh\u0101rkhand": 33,
+    "Odisha": 28,
+    "Chhatt\u012bsgarh": 16,
+    "Mah\u0101r\u0101shtra": 14,
+    "R\u0101jasth\u0101n": 10,
+    "West Bengal": 9,
+    "Madhya Pradesh": 9,
+    "Karn\u0101taka": 6
+  },
+  "industrial_persistent_by_kind": {
+    "mining_quarry": 86,
+    "power_thermal": 42,
+    "factory_generic": 16,
+    "cement": 3,
+    "steel_metal": 2,
+    "refinery_petrochem": 2,
+    "landfill": 1
+  },
+  "incident_status": {
+    "not_assessable": 17,
+    "matched_anomalous": 9,
+    "no_detection": 8,
+    "routine_source": 6
+  },
+  "eval": {
+    "rules": {
+      "macro_f1": 0.678,
+      "accuracy": 0.63
+    },
+    "model": {
+      "macro_f1": 0.878,
+      "accuracy": 0.878
+    },
+    "thermal_only": {
+      "macro_f1": 0.331,
+      "accuracy": 0.422
+    }
+  },
+  "rules_recall": {
+    "industrial_persistent": 0.44,
+    "industrial_fire_candidate": 0.93,
+    "unmapped_persistent": 0.38,
+    "agricultural_burning": 0.96,
+    "vegetation_fire": 0.97
+  },
+  "model_recall": {
+    "industrial_persistent": 0.82,
+    "industrial_fire_candidate": 0.92,
+    "unmapped_persistent": 0.89,
+    "agricultural_burning": 0.87,
+    "vegetation_fire": 0.99
+  }
+}

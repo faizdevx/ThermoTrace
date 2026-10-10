@@ -47,6 +47,41 @@ ThermoTrace is a Web GIS that does two things on one map:
 
 ---
 
+## Dashboard
+
+![ThermoTrace dashboard: thermal sources by class over the industrial-sites map](docs/images/dashboard.png)
+
+_Live PostGIS-backed dashboard captured 2026-10-10: 2,794 OSM industrial sites (north-east pilot) and 3,159 classified FIRMS thermal sources from 12,676 VIIRS detections, 2 alerts, newest detection ~6 h old. Filled circles are thermal sources (size = radiative power, colour = class, dark ring = alert); numbered discs are clusters; the left panel filters by class, window, minimum power and alerts, and exports CSV/GeoJSON._
+
+![Sentinel-2 true-colour and SWIR chips for a persistent industrial thermal source](docs/images/sentinel2_chip.png)
+
+_Clicking a thermal source shows a Sentinel-2 chip pair from the clearest scene within 5 days (here a coal mine in Odisha: the SWIR composite shows glowing, burning coal seams)._
+
+## Findings
+
+All figures are produced by `industrial-data/scripts/make_figures.py` from the real result files. Read the caveats: labels are weak and rule-derived, incident locations are partly coarse, and one snapshot of one week is not a trend.
+
+**1. A trained model fixes the rules' main weakness.** On held-out states and months the gradient-boosted model reaches macro-F1 0.88 against 0.68 for the rules. The rules call 366 of 683 persistent industrial windows "fire candidate" (recall 0.44) and send 139 of 414 persistent unmapped sources to "other" (recall 0.38); the model recovers them (recall 0.82 and 0.89) at the price of slightly lower agricultural recall (0.87 vs 0.96).
+
+![Per-class F1 for rules, model and thermal-only features](docs/images/f1_by_class.png)
+![Confusion matrices, rules vs model](docs/images/confusion_matrices.png)
+
+**2. Context, not satellite behaviour alone, separates the classes.** Thermal-behaviour features alone (persistence, night share, power, footprint) score macro-F1 0.33; adding facility proximity and land cover gives 0.88. FIRMS tells you where heat is, the facility map and land cover tell you why. This is also a caution: those context features define the labels, so the score is agreement with the labelling rules.
+
+**3. Radiative power does not separate industrial from agricultural fires.** Median peak power per source is 3.1 MW for persistent industrial, 3.2 MW for crop burning and 3.4 MW for vegetation fire; night share and persistence do the separating (median night share 1.0 for the industrial classes, 0.0 for crop and forest fires).
+
+![Thermal source classes, power and persistence](docs/images/thermal_overview.png)
+
+**4. Persistent "industrial" heat in this pilot is mostly coal.** Of 152 persistent industrial sources in the 2026-10-02 to 2026-10-08 run, 86 sit on OSM mining/quarry features and 42 on thermal power plants (only 2 refineries, 2 steel plants, 3 cement works). By state: Jharkhand 33, Odisha 28, Chhattisgarh 16, Maharashtra 14, Rajasthan 10. Burning coal seams and overburden dumps are a heat source a facility list alone would not explain.
+
+**5. Satellite evidence for documented incidents is thin and depends on location quality.** Of 40 documented industrial fires, 17 could not be located well enough to test. Of the 23 tested, 9 show an anomalous VIIRS detection, 6 sit on a site that is routinely hot (a refinery fire is not separable from baseline at 375 m), and 8 show nothing. The two strongest signals (Vatva GIDC 62 MW, Igatpuri/Jindal Poly Films 54 MW) are industrial-estate or town-level locations; facility-level matches are mostly under 7 MW. The bottleneck is verified facility coordinates, not the satellite archive.
+
+![Incident matching results](docs/images/incident_matching.png)
+
+**6. Honest limits of the numbers.** One train/test split, one seed, S-NPP only, no confidence intervals; "industrial fire candidate" means an episodic detection at a facility, not a confirmed fire; the trained model is not yet in the live pipeline.
+
+Regenerate: `python industrial-data/scripts/train_classifier.py && python industrial-data/scripts/make_figures.py` (matplotlib is only needed for the figures); the dashboard screenshot comes from `industrial-data/scripts/capture_dashboard.py` against a running app.
+
 ## What is implemented (and verified)
 
 | Area | Status |

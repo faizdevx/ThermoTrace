@@ -53,7 +53,7 @@ ThermoTrace is a Web GIS that does two things on one map:
 |---|---|
 | FIRMS ingestion (S-NPP, NOAA-20, NOAA-21 VIIRS NRT; public CSV or `MAP_KEY` API) | working, run against real data |
 | Clustering into thermal sources, facility matching, land-cover sampling, explainable classifier | working, 24 unit tests |
-| Thermal layer on the map, class filters, alert flag, source detail panel with reasons + detection timeline, CSV/GeoJSON export | working (frontend tests + browser check of the map layer) |
+| Thermal layer on the map, class filters, alert flag, source detail panel with reasons + detection timeline, Sentinel-2 true-colour/SWIR chip (clearest scene within 5 days, < 30 % cloud, `/api/thermal/sources/{id}/imagery`), CSV/GeoJSON export | working (frontend tests + browser check of the map layer) |
 | Snapshot **and** PostGIS storage (`thermal_sources`, `thermal_detections`, `thermal_runs`) | PostGIS path run against a real PostGIS container |
 | OSM industrial sites: baseline import + incremental replication (osm2pgsql) with durable checkpoint, locking, backoff, revisions | 23 lifecycle tests; baseline imported (below); catching up to the live diff feed **not observed to completion** |
 | REST API, SSE change notifications with polling fallback, live-status panel | tests below |
@@ -73,7 +73,26 @@ ThermoTrace is a Web GIS that does two things on one map:
   | Persistent, no mapped facility | 106 |
   | Other | 89 |
 
-  The persistent-industrial list is plausible: it is dominated by Odisha/Jharkhand coal mines, plus e.g. Tata Steel Meramandali, Jindal Raigarh and Jojobera power stations - night-time detections on 7 of 7 days. **No ground-truth validation has been done**, so no accuracy figure is claimed.
+  The persistent-industrial list is plausible: it is dominated by Odisha/Jharkhand coal mines, plus e.g. Tata Steel Meramandali, Jindal Raigarh and Jojobera power stations - night-time detections on 7 of 7 days. The rule-based classes were then checked against the incident list and a trained model (below).
+* **Documented industrial-fire incidents vs NASA FIRMS** (40 public-source incidents, 2016-2025, matched against the VIIRS S-NPP/NOAA-20 archive; script `industrial-data/scripts/match_incidents.py`). Event window = date -1 / +2 days, baseline = 60 to 8 days before, radius = location uncertainty + 0.5 km, "routine" = active on >= 30 % of baseline days. Query parameters are stored with the results.
+
+  | Outcome | Incidents |
+  |---|---|
+  | Not assessable (no verified facility/area location) | 17 |
+  | Anomalous VIIRS detection near the incident (quiet baseline) | 9 |
+  | No detection | 8 |
+  | Detection but the site is routinely hot (cannot attribute) | 6 |
+
+  The 9 anomalous matches: Jamnagar FCCU flash fire 2016-11-24 (1 det., 3.3 MW), Panipat Naphtha Cracker 2018-01-22 (3, 6.0 MW), Mathura refinery 2020-01-07 (1, 0.6 MW), Vatva GIDC 2020-12-09 (8, 62.4 MW), Numaligarh hydrocracker 2023-05-29 (1, 0.5 MW), Barauni ETP 2024-02-10 (4, 6.5 MW), plus three locality-level matches (Bengaluru 2020-11-10, Kundli 2022-04-17, Igatpuri/Jindal Poly Films 2023-01-01: 17 det., 54.1 MW). **Read with care:** facility-level matches are mostly under 7 MW, near the VIIRS detection floor; locality-level matches use a 5 km centroid, so nearby unrelated heat can match; a match is *a* thermal anomaly at the right place and time, not proof of the reported fire; no detection does not mean no fire (375 m pixels, cloud, small fires between passes). Only 11 of 40 incident locations are facility-level (OSM named objects), 4 industrial-estate level, 8 locality, 17 unlocated.
+* **Trained classifier vs rules** (`docs/EVALUATION.md`, `industrial-data/scripts/train_classifier.py`). Gradient-boosted trees (scikit-learn `HistGradientBoostingClassifier`) on 7-day source windows from the S-NPP archive (2025-07 to 2026-10, 562k detections in India). Strict hold-out: test = 11 held-out states AND windows from 2026-04-01; train = other states and earlier windows (5,660 train / 1,833 test windows).
+
+  | | macro-F1 | accuracy |
+  |---|---|---|
+  | Rule classifier | 0.678 | 0.630 |
+  | Gradient-boosted model | **0.878** | **0.878** |
+  | Gradient-boosted, thermal-behaviour features only | 0.331 | 0.422 |
+
+  Per-class F1 rules -> model: industrial persistent 0.61 -> 0.88, industrial fire candidate 0.53 -> 0.74, persistent no mapped facility 0.53 -> 0.91, agricultural burning 0.91 -> 0.92, vegetation fire 0.81 -> 0.93. **These labels are weak and rule-derived, not ground truth:** they come from each ~2 km cell's long-run activity over the archive, OSM facility proximity and WorldCover land cover, and the last two are also model inputs, so the scores measure agreement with the labelling rules on unseen regions/months, not real-world accuracy. The thermal-only score (0.33) shows satellite behaviour alone barely separates the classes. "Industrial fire candidate" means *episodic detection at a facility*, not a confirmed fire. One split, one seed, S-NPP only, no confidence intervals. The trained model is not yet wired into the live pipeline; the live app still uses the rule classifier.
 * **Real-time chain, measured once on 2026-10-09 (single observation, not a benchmark):** the thermal worker polls FIRMS every 10 min and publishes only when new detections arrive. For a batch of 40 new detections the FIRMS file was published 07:45:42 UTC and committed to PostGIS at 07:48:57 (**195 s**); the `thermal` SSE event reached the API stream ~0.02 s after the commit. Worst case is the poll interval plus ~17 s of processing; the satellite-to-file delay (~3 h) is upstream and not under our control. The OSM worker checks Geofabrik every 5 min and was caught up (cursor = source head), but Geofabrik regional diffs are published about **once a day**, so a new-OSM-edit-to-screen lag of hours is inherent to that source; no OSM diff was applied during this check. Browser repaint delay was not measured.
 * The lifecycle tests assert the mechanics (notification only after commit, checkpoint never advances on failure, unchanged data publishes nothing); they are not latency benchmarks.
 
@@ -170,7 +189,7 @@ See `.env.example`. Key variables: `POSTGRES_*`, `ALLOWED_ORIGINS`, `ADMIN_TOKEN
 
 ## Known limitations
 
-* The classifier is rule-based with expert priors; **no labelled validation set exists**, so accuracy is unknown. Agricultural vs. other low-power vegetation fires and industrial vs. unmapped industry depend on OSM completeness.
+* The live classifier is rule-based with expert priors. A trained model beats it on a held-out split, but against **weak rule-derived labels, not ground truth**; incident evidence covers only 23 of 40 documented incidents (17 could not be located) and is mostly near the detection floor. Agricultural vs. other low-power vegetation fires and industrial vs. unmapped industry depend on OSM completeness.
 * VIIRS is 375 m and ~3 h behind real time; a short-lived industrial event can fall between overpasses. Persistence needs history: the first run only has the 7 days FIRMS publishes (history accumulates afterwards).
 * Facility matching uses a type-based radius around a representative point in standalone mode; large plants can be missed or over-matched. In PostGIS mode polygon equivalent radius is used.
 * OSM sites cover only the imported region; thermal facility matching is India-wide. 105 pilot sites sit outside geoBoundaries' state polygons (neighbouring countries / border simplification).

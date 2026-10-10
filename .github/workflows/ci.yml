@@ -5,10 +5,18 @@ on:
     branches: [main, master]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   backend-api:
     name: API tests (synthetic fixtures + thermal snapshot)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -21,7 +29,8 @@ jobs:
 
   postgis:
     name: PostGIS sync lifecycle + API contract tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     services:
       postgis:
         image: postgis/postgis:16-3.4
@@ -42,12 +51,14 @@ jobs:
         run: python -m pytest tests/sync tests/thermal -q
       - name: API contract tests against PostGIS
         working-directory: industrial-gis
+        timeout-minutes: 10
         env: { DATA_MODE: postgis }
         run: python -m pytest backend/tests/postgis -q
 
   frontend:
     name: Frontend typecheck, tests, build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     defaults: { run: { working-directory: industrial-gis/frontend } }
     steps:
       - uses: actions/checkout@v4

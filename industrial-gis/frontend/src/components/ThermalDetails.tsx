@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react';
-import type { ThermalClassInfo, ThermalDetection, ThermalFeature } from '@/types/industrial';
+import { useEffect, useState, type ReactNode } from 'react';
+import { fetchThermalImagery } from '@/services/api';
+import type { ThermalClassInfo, ThermalDetection, ThermalFeature, ThermalImagery } from '@/types/industrial';
 
 const NA = 'Not available';
 
@@ -30,6 +31,48 @@ function Timeline({ detections }: { detections: ThermalDetection[] }) {
       <text x="0" y="69" fontSize="8" fill="#94a3b8">{new Date(t0).toLocaleDateString()}</text>
       <text x="300" y="69" fontSize="8" fill="#94a3b8" textAnchor="end">{new Date(t1).toLocaleDateString()}</text>
     </svg>
+  );
+}
+
+type ImageryState = { status: 'loading' } | { status: 'error' } | { status: 'done'; data: ThermalImagery };
+
+/** One Sentinel-2 chip pair for the open source, fetched when the source changes (cached server-side). */
+function ImageryPanel({ sourceId }: { sourceId: string }) {
+  const [state, setState] = useState<ImageryState>({ status: 'loading' });
+  useEffect(() => {
+    const controller = new AbortController();
+    setState({ status: 'loading' });
+    fetchThermalImagery(sourceId, controller.signal)
+      .then(data => setState({ status: 'done', data }))
+      .catch(() => { if (!controller.signal.aborted) setState({ status: 'error' }); });
+    return () => controller.abort();
+  }, [sourceId]);
+
+  if (state.status === 'loading') return <span style={{ fontSize: 12, color: '#64748b' }}>Searching Sentinel-2 scenes…</span>;
+  if (state.status === 'error') return <span style={{ fontSize: 12, color: '#b91c1c' }}>Satellite imagery service unavailable.</span>;
+  const d = state.data;
+  if (!d.available || !d.true_colour || !d.swir || !d.scene) return <span style={{ fontSize: 12, color: '#64748b' }}>{d.reason ?? NA}</span>;
+  const figure = (src: string, caption: string) => (
+    <figure style={{ margin: 0, flex: 1, position: 'relative' }}>
+      <img src={src} alt={caption} style={{ width: '100%', display: 'block', borderRadius: 8 }} />
+      <span aria-hidden style={{ position: 'absolute', left: '50%', top: '50%', width: 14, height: 14, marginLeft: -7, marginTop: -7,
+                                 border: '1.5px solid #fff', borderRadius: '50%', boxShadow: '0 0 0 1px #0f172a' }} />
+      <figcaption style={{ fontSize: 10.5, color: '#475569', marginTop: 3 }}>{caption}</figcaption>
+    </figure>
+  );
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 8 }}>
+        {figure(d.true_colour, `True colour (B4/B3/B2) · ${d.window_km} km`)}
+        {figure(d.swir, 'SWIR (B12/B11/B8A): flames and hot ground glow orange')}
+      </div>
+      <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+        {d.scene.platform ?? 'Sentinel-2'} · {new Date(d.scene.datetime).toLocaleString()} ({d.scene.offset_days > 0 ? '+' : ''}
+        {d.scene.offset_days.toFixed(1)} d from last detection) · {d.scene.cloud_cover_percent.toFixed(0)}% scene cloud ·{' '}
+        <code>{d.scene.id}</code>
+      </div>
+      <div style={{ fontSize: 10, color: '#94a3b8' }}>{d.attribution}</div>
+    </>
   );
 }
 
@@ -129,6 +172,10 @@ export function ThermalDetails({ feature, info, gone, onClose }: Props) {
 
           <Row k="Land cover around the source (ESA WorldCover 2021)">
             {p.lc_dominant ? <>{p.lc_dominant} dominant · crop {Math.round((p.lc_crop ?? 0) * 100)}% · natural vegetation {Math.round((p.lc_vegetation ?? 0) * 100)}% · built {Math.round((p.lc_built ?? 0) * 100)}% · bare {Math.round((p.lc_bare ?? 0) * 100)}%</> : NA}
+          </Row>
+
+          <Row k="Satellite imagery (Sentinel-2, clearest scene within 5 days)">
+            <ImageryPanel sourceId={p.source_id} />
           </Row>
 
           <Row k="Location">{lat.toFixed(5)}, {lon.toFixed(5)} · instruments: {p.instruments.replace(/VIIRS_|_NRT/g, '')}</Row>

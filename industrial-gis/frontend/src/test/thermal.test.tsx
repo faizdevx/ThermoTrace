@@ -10,6 +10,10 @@ vi.mock('leaflet/dist/leaflet.css', () => ({}));
 vi.mock('leaflet.markercluster/dist/MarkerCluster.css', () => ({}));
 vi.mock('leaflet.markercluster/dist/MarkerCluster.Default.css', () => ({}));
 
+vi.mock('@/services/api', () => ({
+  fetchThermalImagery: vi.fn(async () => ({ available: false, reason: 'No Sentinel-2 scene under 30% cloud within 5 days of the last detection (0 candidate(s)).', window_km: 3 })),
+}));
+
 const feature = (over: Record<string, unknown> = {}): ThermalFeature => ({
   type: 'Feature',
   geometry: { type: 'Point', coordinates: [85.1, 21.9] },

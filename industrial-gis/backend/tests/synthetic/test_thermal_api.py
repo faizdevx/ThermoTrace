@@ -110,3 +110,27 @@ def test_missing_snapshot_is_503_with_hint(tmp_path, monkeypatch):
     c = TestClient(app)
     assert c.get("/api/thermal/sources").status_code == 503
     assert c.get("/api/thermal/status").json()["available"] is False
+
+
+def test_imagery_scene_choice_is_clearest_within_window(monkeypatch):
+    from datetime import datetime, timezone
+    from backend.app.services import imagery
+
+    bands = {b: {"href": f"https://x/{b}.tif"} for b in imagery.TRUE_BANDS + imagery.SWIR_BANDS}
+    item = lambda iid, when, cloud, assets=bands: {  # noqa: E731
+        "id": iid, "assets": assets, "properties": {"datetime": when, "eo:cloud_cover": cloud}}
+    centre = datetime(2026, 10, 8, 20, 0, tzinfo=timezone.utc)
+    picks = imagery.pick_scenes([
+        item("cloudy", "2026-10-08T05:00:00Z", 45.0),                    # over the cloud limit
+        item("old", "2026-09-20T05:00:00Z", 1.0),                        # outside +-5 days
+        item("no-swir", "2026-10-08T05:00:00Z", 2.0, {"red": {"href": "x"}}),   # missing bands
+        item("ok-near", "2026-10-08T05:00:00Z", 12.0),
+        item("ok-clearer", "2026-10-05T05:00:00Z", 3.5),
+        item("ok-tie", "2026-10-07T05:00:00Z", 3.5),
+    ], centre)
+    assert [p["feature"]["id"] for p in picks] == ["ok-tie", "ok-clearer", "ok-near"]   # clearest first, ties by closeness
+    assert picks[0]["offset_days"] < 0 and all(p["cloud"] < imagery.MAX_CLOUD for p in picks)
+
+    monkeypatch.setattr(imagery, "search", lambda lon, lat, centre: [])
+    out = imagery.chip_for("t-none", 85.0, 21.0, "2026-10-08T20:00:00+00:00")
+    assert out["available"] is False and "No Sentinel-2 scene" in out["reason"] and out["search"]["max_cloud_percent"] == 30.0

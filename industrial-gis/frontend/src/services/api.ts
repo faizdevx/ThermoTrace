@@ -16,6 +16,7 @@ import type {
   ThermalClassInfo,
   ThermalFeature,
   ThermalFilters,
+  ThermalImagery,
   ThermalStats,
   ThermalStatus,
 } from '@/types/industrial';
@@ -177,4 +178,8 @@ export function fetchThermalStats(filters: ThermalFilters = {}, signal?: AbortSi
 
 export function thermalExportUrl(format: 'csv' | 'geojson', filters: ThermalFilters): string {
   return `${API_BASE}/thermal/export${buildQuery({ ...filters, format } as QueryFilters)}`;
+}
+
+export function fetchThermalImagery(id: string, signal?: AbortSignal): Promise<ThermalImagery> {
+  return requestJson(`/thermal/sources/${encodeURIComponent(id)}/imagery`, { timeoutMs: 90_000, signal });
 }

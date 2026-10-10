@@ -16,7 +16,7 @@ from sqlalchemy.exc import DBAPIError, OperationalError
 
 from backend.app.config import get_settings
 from backend.app.db import check_db_connection
-from backend.app.services import catalog, events, sync_status, thermal_repo
+from backend.app.services import catalog, events, imagery, sync_status, thermal_repo
 from backend.app.services import postgis_repo as repo
 from backend.app.services.postgis_repo import InvalidFilter, parse_bbox
 
@@ -431,6 +431,21 @@ def thermal_source(source_id: str) -> dict[str, Any]:
     if feature is None:
         raise HTTPException(status_code=404, detail="Thermal source not found (it may have aged out of the window).")
     return feature
+
+
+@router.get("/thermal/sources/{source_id}/imagery")
+def thermal_source_imagery(source_id: str) -> dict[str, Any]:
+    """One Sentinel-2 chip pair (true colour + SWIR) for the source's location, or an honest 'not available'."""
+    backend = thermal_repo.get_backend()
+    feature = backend.get_source(source_id) if backend.available() else None
+    if feature is None:
+        raise HTTPException(status_code=404, detail="Thermal source not found (it may have aged out of the window).")
+    lon, lat = feature["geometry"]["coordinates"]
+    try:
+        return imagery.chip_for(source_id, lon, lat, feature["properties"]["last_seen"])
+    except Exception as exc:  # noqa: BLE001 - STAC / COG network failures
+        logger.warning("imagery failed for %s: %s", source_id, exc)
+        raise HTTPException(status_code=502, detail="Satellite imagery service unavailable. Try again later.") from exc
 
 
 @router.get("/thermal/stats")

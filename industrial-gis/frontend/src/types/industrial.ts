@@ -273,3 +273,21 @@ export interface ThermalFilters {
   hours?: number;
   state?: string;
 }
+
+export interface ThermalImagery {
+  available: boolean;
+  reason: string | null;
+  window_km: number;
+  true_colour?: string;
+  swir?: string;
+  scene?: {
+    id: string;
+    datetime: string;
+    cloud_cover_percent: number;
+    offset_days: number;
+    platform?: string | null;
+    mgrs_tile?: string | null;
+  };
+  composites?: { true_colour: string; swir: string };
+  attribution?: string;
+}

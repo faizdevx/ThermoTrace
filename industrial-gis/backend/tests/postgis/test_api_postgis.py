@@ -159,7 +159,7 @@ def test_sql_injection_attempt_is_inert(client):
 def test_detail_has_full_geometry_tags_and_provenance(client):
     listing = features(client, "/api/industries/search?q=alpha")["features"][0]["properties"]
     d = client.get(f"/api/industries/{listing['site_id']}").json()
-    assert d["geometry"]["type"] == "Polygon"
+    assert d["geometry"]["type"] in ("Polygon", "MultiPolygon")   # stored normalised to MultiPolygon
     p = d["properties"]
     assert p["tags"]["operator"] == "Alpha Ltd" and p["area_m2"] > 0
     assert p["source_url"] == "https://www.openstreetmap.org/way/1" and p["state"] == "Testland"
@@ -295,7 +295,9 @@ def test_admin_trigger_is_protected(client, db, monkeypatch):
 
 
 # ── SSE ──────────────────────────────────────────────────────────────────────────
-def test_sse_hub_delivers_revision_events_after_commit(db):
+def test_sse_hub_delivers_revision_events_only_after_commit(db):
+    payload = json.dumps({"revision": 99, "created": 1, "committed_at": "2026-10-10T00:00:00+00:00"})
+
     async def scenario():
         hub = events.EventHub()
         hub.start(asyncio.get_running_loop())
@@ -305,27 +307,39 @@ def test_sse_hub_delivers_revision_events_after_commit(db):
                 break
             await asyncio.sleep(0.05)
         assert hub.connected
-        await asyncio.to_thread(
-            sync, db, add=[("N", 777, {"industrial": "factory", "name": "SSE Probe"}, "POINT(1 9)")])
-        message = await asyncio.wait_for(queue.get(), timeout=10)
+        with psycopg2.connect(DSN) as conn:          # a writer that has NOT committed yet
+            cur = conn.cursor()
+            cur.execute("SELECT pg_notify('thermotrace_changes', %s)", (payload,))
+            await asyncio.sleep(0.5)
+            assert queue.empty()                     # nothing is delivered before COMMIT
+        message = await asyncio.wait_for(queue.get(), timeout=10)   # leaving the block committed
         hub.stop()
         return message
 
     message = asyncio.run(scenario())
     assert message["event"] == "revision" and message["data"]["created"] == 1
     wire = events.format_sse(message["event"], message["data"], message["data"]["revision"])
-    assert wire.startswith(f"id: {message['data']['revision']}\nevent: revision\ndata: {{")
+    assert wire.startswith("id: 99\nevent: revision\ndata: {")
 
 
-def test_sse_endpoint_streams_hello_first(client):
-    with client.stream("GET", "/api/events") as r:
-        assert r.status_code == 200 and r.headers["content-type"].startswith("text/event-stream")
-        first = ""
-        for chunk in r.iter_text():
-            first += chunk
-            if "event: hello" in first and "data:" in first:
-                break
-    assert '"revision"' in first
+def test_sse_endpoint_streams_hello_first():
+    """Drive the route's generator directly: a TestClient stream of an endless response never closes."""
+    from backend.app.api import routes
+
+    class FakeRequest:
+        async def is_disconnected(self) -> bool:
+            return False
+
+    async def scenario():
+        response = await routes.event_stream(FakeRequest())
+        it = response.body_iterator
+        chunks = [await asyncio.wait_for(it.__anext__(), timeout=10) for _ in range(2)]
+        await it.aclose()
+        return response, "".join(chunks)
+
+    response, text = asyncio.run(scenario())
+    assert response.media_type == "text/event-stream" and response.headers["cache-control"] == "no-cache"
+    assert text.startswith("retry: 3000") and "event: hello" in text and '"revision"' in text
 
 
 # ── database failure ─────────────────────────────────────────────────────────────

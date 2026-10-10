@@ -319,8 +319,10 @@ def _stream_rows(filters: dict[str, Any], full_geometry: bool) -> Iterator[Any]:
         f"FROM industrial_sites WHERE {where} ORDER BY site_id"
     )
     with get_engine().connect() as conn:
-        conn = conn.execution_options(stream_results=True, max_row_buffer=_EXPORT_BATCH)
-        conn.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY"))
+        # One consistent snapshot for the whole stream. Must be set before the transaction begins; a raw
+        # "SET TRANSACTION" cannot be issued on a server-side (stream_results) cursor.
+        conn = conn.execution_options(isolation_level="REPEATABLE READ", postgresql_readonly=True,
+                                      stream_results=True, max_row_buffer=_EXPORT_BATCH)
         result = conn.execute(sql, params)
         for row in result.mappings():
             yield row

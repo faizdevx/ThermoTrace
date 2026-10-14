@@ -4,16 +4,22 @@ CREATE TABLE IF NOT EXISTS facilities (
     name            TEXT,
     kind            TEXT NOT NULL,
     geometry        geometry(Point, 4326) NOT NULL,
+    footprint       geometry(Geometry, 4326),
     radius_m        DOUBLE PRECISION NOT NULL,
     capacity_mw     DOUBLE PRECISION,
     status          TEXT,
+    fuel            TEXT,
     primary_source  TEXT NOT NULL,
     source_count    INTEGER NOT NULL,
     sources         TEXT NOT NULL,
     attribution     TEXT NOT NULL,
     built_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- tables created by an earlier draft of this migration
+ALTER TABLE facilities ADD COLUMN IF NOT EXISTS footprint geometry(Geometry, 4326);
+ALTER TABLE facilities ADD COLUMN IF NOT EXISTS fuel TEXT;
 CREATE INDEX IF NOT EXISTS idx_facilities_geom ON facilities USING GIST (geometry);
+CREATE INDEX IF NOT EXISTS idx_facilities_footprint ON facilities USING GIST (footprint);
 CREATE INDEX IF NOT EXISTS idx_facilities_kind ON facilities (kind);
 
 CREATE TABLE IF NOT EXISTS facility_sources (

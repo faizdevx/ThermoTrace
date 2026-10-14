@@ -165,6 +165,10 @@ export function fetchFacilities(signal?: AbortSignal): Promise<import('@/types/i
   return requestJson('/facilities?limit=20000', { signal });
 }
 
+export function fetchFacility(id: string, signal?: AbortSignal): Promise<import('@/types/industrial').FacilityDetail> {
+  return requestJson(`/facilities/${encodeURIComponent(id)}`, { signal });
+}
+
 export function fetchThermalSources(
   filters: ThermalFilters & { limit?: number } = {},
   signal?: AbortSignal,

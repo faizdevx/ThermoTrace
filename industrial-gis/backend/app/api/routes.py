@@ -389,6 +389,15 @@ def facilities(bbox: str | None = None, kind: str | None = None, source: str | N
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
+@router.get("/facilities/{facility_id}")
+def facility_detail(facility_id: str) -> dict[str, Any]:
+    """One facility with its footprint polygon (where OSM has one) and every merged source record."""
+    found = facilities_repo.detail(facility_id)
+    if found is None:
+        raise HTTPException(status_code=404, detail="facility not found")
+    return found
+
+
 @router.get("/thermal/classes")
 def thermal_classes() -> dict[str, Any]:
     """Class metadata for legends: label, colour and what each class means."""

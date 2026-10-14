@@ -51,30 +51,30 @@
   },
   "eval": {
     "rules": {
-      "macro_f1": 0.656,
-      "accuracy": 0.607
+      "macro_f1": 0.634,
+      "accuracy": 0.587
     },
     "model": {
-      "macro_f1": 0.87,
-      "accuracy": 0.877
+      "macro_f1": 0.872,
+      "accuracy": 0.885
     },
     "thermal_only": {
-      "macro_f1": 0.338,
-      "accuracy": 0.444
+      "macro_f1": 0.325,
+      "accuracy": 0.449
     }
   },
   "rules_recall": {
-    "industrial_persistent": 0.42,
-    "industrial_fire_candidate": 0.91,
-    "unmapped_persistent": 0.36,
+    "industrial_persistent": 0.44,
+    "industrial_fire_candidate": 0.88,
+    "unmapped_persistent": 0.37,
     "agricultural_burning": 0.96,
-    "vegetation_fire": 0.97
+    "vegetation_fire": 0.98
   },
   "model_recall": {
     "industrial_persistent": 0.83,
-    "industrial_fire_candidate": 0.9,
-    "unmapped_persistent": 0.88,
-    "agricultural_burning": 0.87,
+    "industrial_fire_candidate": 0.92,
+    "unmapped_persistent": 0.89,
+    "agricultural_burning": 0.93,
     "vegetation_fire": 1.0
   }
 }

@@ -4,6 +4,8 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import 'leaflet.markercluster';
+import { fetchFacility } from '@/services/api';
+import { facilityPopupHtml } from '@/components/facilityPopup';
 import type {
   BoundaryFeature,
   FeatureCollection,
@@ -142,6 +144,8 @@ export function MapView({
   const selectedIdRef = useRef<string | null>(selectedSiteId);
   const thermalLayerRef = useRef<L.LayerGroup | null>(null);
   const facilityLayerRef = useRef<L.LayerGroup | null>(null);
+  const facilityRendererRef = useRef<L.Renderer | null>(null);
+  const footprintLayerRef = useRef<L.LayerGroup | null>(null);
   const thermalMarkersRef = useRef<Map<string, { marker: L.CircleMarker; sig: string }>>(new Map());
   const onSelectThermalRef = useRef(onSelectThermal);
   useEffect(() => { onSelectThermalRef.current = onSelectThermal; }, [onSelectThermal]);
@@ -163,6 +167,8 @@ export function MapView({
     thermalLayerRef.current = L.layerGroup([], { pane: 'thermal' }).addTo(map);
     map.createPane('facilities').style.zIndex = '410';
     facilityLayerRef.current = L.layerGroup([], { pane: 'facilities' }).addTo(map);
+    footprintLayerRef.current = L.layerGroup([], { pane: 'facilities' }).addTo(map);
+    map.on('popupclose', () => footprintLayerRef.current?.clearLayers());
 
     // Basemap: OpenStreetMap standard tiles (https://operations.osmfoundation.org/policies/tiles/ - fine for
     // light use; set VITE_TILE_URL to your own tile provider for production traffic). Map DATA: OSM (ODbL).
@@ -303,20 +309,38 @@ export function MapView({
     const map = mapRef.current;
     if (!layer || !map) return;
     layer.clearLayers();
+    footprintLayerRef.current?.clearLayers();
     if (!facilities?.features.length) return;
-    const renderer = L.canvas({ pane: 'facilities', padding: 0.3 });
+    // one canvas renderer for the layer's lifetime (a new one per update would leak canvases)
+    const renderer = facilityRendererRef.current
+      ?? (facilityRendererRef.current = L.canvas({ pane: 'facilities', padding: 0.3 }));
+    const controller = new AbortController();
     for (const f of facilities.features) {
       const p = f.properties;
       const [lon, lat] = f.geometry.coordinates;
       const multi = p.source_count > 1;
-      L.circleMarker([lat, lon], {
+      const marker = L.circleMarker([lat, lon], {
         renderer, pane: 'facilities', radius: multi ? 4 : 3, weight: 1, color: '#1e293b',
         fillColor: multi ? '#0ea5e9' : '#94a3b8', fillOpacity: 0.85,
       }).bindTooltip(
         `${p.name ?? 'Unnamed facility'} - ${p.kind.replace(/_/g, ' ')}${p.capacity_mw ? ` - ${Math.round(p.capacity_mw)} MW` : ''}`
         + ` | sources: ${p.sources.split(',').join(', ')}`,
-      ).addTo(layer);
+      );
+      marker.on('click', () => {
+        fetchFacility(p.facility_id, controller.signal).then(detail => {
+          const outline = footprintLayerRef.current;
+          outline?.clearLayers();
+          if (detail.footprint && outline) {
+            L.geoJSON(detail.footprint as GeoJSON.GeoJsonObject, {
+              style: { color: '#0369a1', weight: 2, fillOpacity: 0.08, interactive: false },
+            }).addTo(outline);
+          }
+          L.popup({ maxWidth: 300 }).setLatLng([lat, lon]).setContent(facilityPopupHtml(detail)).openOn(map);
+        }).catch(() => { /* aborted or offline: tooltip still shows the basics */ });
+      });
+      marker.addTo(layer);
     }
+    return () => controller.abort();
   }, [facilities]);
 
   useEffect(() => {

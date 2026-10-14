@@ -57,12 +57,12 @@ _Clicking a thermal source shows a Sentinel-2 chip pair from the clearest scene 
 
 All figures are produced by `industrial-data/scripts/make_figures.py` from the real result files. Read the caveats: labels are weak and rule-derived, incident locations are partly coarse, and one snapshot of one week is not a trend.
 
-**1. A trained model fixes the rules' main weakness.** On held-out states and months the gradient-boosted model reaches macro-F1 0.87 against 0.66 for the rules. The rules call 459 of 827 persistent industrial windows "fire candidate" (recall 0.42) and send 142 of 421 persistent unmapped sources to "other" (recall 0.36); the model recovers them (recall 0.83 and 0.88) at the price of slightly lower agricultural recall (0.87 vs 0.96).
+**1. A trained model fixes the rules' main weakness.** On held-out states and months the gradient-boosted model reaches macro-F1 0.87 against 0.63 for the rules. The rules call 559 of 1,022 persistent industrial windows "fire candidate" (recall 0.44) and send 151 of 531 persistent unmapped sources to "other" (recall 0.37); the model recovers them (recall 0.83 and 0.89) at the price of slightly lower agricultural recall (0.93 vs 0.96).
 
 ![Per-class F1 for rules, model and thermal-only features](docs/images/f1_by_class.png)
 ![Confusion matrices, rules vs model](docs/images/confusion_matrices.png)
 
-**2. Context, not satellite behaviour alone, separates the classes.** Thermal-behaviour features alone (persistence, night share, power, footprint) score macro-F1 0.34; adding facility proximity and land cover gives 0.87. FIRMS tells you where heat is, the facility map and land cover tell you why. This is also a caution: those context features define the labels, so the score is agreement with the labelling rules.
+**2. Context, not satellite behaviour alone, separates the classes.** Thermal-behaviour features alone (persistence, night share, power, footprint) score macro-F1 0.33; adding facility proximity and land cover gives 0.87. FIRMS tells you where heat is, the facility map and land cover tell you why. This is also a caution: those context features define the labels, so the score is agreement with the labelling rules.
 
 **3. Radiative power does not separate industrial from agricultural fires.** Median peak power per source is 3.1 MW for persistent industrial, 3.2 MW for crop burning and 3.4 MW for vegetation fire; night share and persistence do the separating (median night share 1.0 for the industrial classes, 0.0 for crop and forest fires).
 
@@ -115,15 +115,15 @@ Regenerate: `python industrial-data/scripts/train_classifier.py && python indust
   | Detection but the site is routinely hot (cannot attribute) | 6 |
 
   The 9 anomalous matches: Jamnagar FCCU flash fire 2016-11-24 (1 det., 3.3 MW), Panipat Naphtha Cracker 2018-01-22 (3, 6.0 MW), Mathura refinery 2020-01-07 (1, 0.6 MW), Vatva GIDC 2020-12-09 (8, 62.4 MW), Numaligarh hydrocracker 2023-05-29 (1, 0.5 MW), Barauni ETP 2024-02-10 (4, 6.5 MW), plus three locality-level matches (Bengaluru 2020-11-10, Kundli 2022-04-17, Igatpuri/Jindal Poly Films 2023-01-01: 17 det., 54.1 MW). **Read with care:** facility-level matches are mostly under 7 MW, near the VIIRS detection floor; locality-level matches use a 5 km centroid, so nearby unrelated heat can match; a match is *a* thermal anomaly at the right place and time, not proof of the reported fire; no detection does not mean no fire (375 m pixels, cloud, small fires between passes). Only 11 of 40 incident locations are facility-level (OSM named objects), 4 industrial-estate level, 8 locality, 17 unlocated.
-* **Trained classifier vs rules** (`docs/EVALUATION.md`, `industrial-data/scripts/train_classifier.py`). Gradient-boosted trees (scikit-learn `HistGradientBoostingClassifier`) on 7-day source windows from the S-NPP archive (2025-07 to 2026-10, 562k detections in India). Strict hold-out: test = 11 held-out states AND windows from 2026-04-01; train = other states and earlier windows (5,212 train / 2,007 test windows).
+* **Trained classifier vs rules** (`docs/EVALUATION.md`, `industrial-data/scripts/train_classifier.py`). Gradient-boosted trees (scikit-learn `HistGradientBoostingClassifier`) on 7-day source windows from the S-NPP archive (2025-07 to 2026-10, 562k detections in India). Strict hold-out: test = 11 held-out states AND windows from 2026-04-01; train = other states and earlier windows (4,382 train / 2,318 test windows).
 
   | | macro-F1 | accuracy |
   |---|---|---|
-  | Rule classifier | 0.656 | 0.607 |
-  | Gradient-boosted model | **0.870** | **0.877** |
-  | Gradient-boosted, thermal-behaviour features only | 0.338 | 0.444 |
+  | Rule classifier | 0.634 | 0.587 |
+  | Gradient-boosted model | **0.872** | **0.885** |
+  | Gradient-boosted, thermal-behaviour features only | 0.325 | 0.449 |
 
-  Per-class F1 rules -> model: industrial persistent 0.58 -> 0.89, industrial fire candidate 0.45 -> 0.71, persistent no mapped facility 0.51 -> 0.90, agricultural burning 0.91 -> 0.93, vegetation fire 0.83 -> 0.93. **These labels are weak and rule-derived, not ground truth:** they come from each ~2 km cell's long-run activity over the archive, OSM facility proximity and WorldCover land cover, and the last two are also model inputs, so the scores measure agreement with the labelling rules on unseen regions/months, not real-world accuracy. The thermal-only score (0.33) shows satellite behaviour alone barely separates the classes. "Industrial fire candidate" means *episodic detection at a facility*, not a confirmed fire. One split, one seed, S-NPP only, no confidence intervals. The trained model is not yet wired into the live pipeline; the live app still uses the rule classifier.
+  Per-class F1 rules -> model: industrial persistent 0.61 -> 0.90, industrial fire candidate 0.38 -> 0.66, persistent no mapped facility 0.52 -> 0.93, agricultural burning 0.88 -> 0.93, vegetation fire 0.79 -> 0.93. **These labels are weak and rule-derived, not ground truth:** they come from each ~2 km cell's long-run activity over the archive, OSM facility proximity and WorldCover land cover, and the last two are also model inputs, so the scores measure agreement with the labelling rules on unseen regions/months, not real-world accuracy. The thermal-only score (0.33) shows satellite behaviour alone barely separates the classes. "Industrial fire candidate" means *episodic detection at a facility*, not a confirmed fire. One split, one seed, S-NPP only, no confidence intervals. The trained model is not yet wired into the live pipeline; the live app still uses the rule classifier.
 * **Real-time chain, measured once on 2026-10-09 (single observation, not a benchmark):** the thermal worker polls FIRMS every 10 min and publishes only when new detections arrive. For a batch of 40 new detections the FIRMS file was published 07:45:42 UTC and committed to PostGIS at 07:48:57 (**195 s**); the `thermal` SSE event reached the API stream ~0.02 s after the commit. Worst case is the poll interval plus ~17 s of processing; the satellite-to-file delay (~3 h) is upstream and not under our control. The OSM worker checks Geofabrik every 5 min and was caught up (cursor = source head), but Geofabrik regional diffs are published about **once a day**, so a new-OSM-edit-to-screen lag of hours is inherent to that source; no OSM diff was applied during this check. Browser repaint delay was not measured.
 * The lifecycle tests assert the mechanics (notification only after commit, checkpoint never advances on failure, unchanged data publishes nothing); they are not latency benchmarks.
 
@@ -133,16 +133,33 @@ Regenerate: `python industrial-data/scripts/train_classifier.py && python indust
 
 Facilities are merged into one table with provenance: `facilities` (one row per physical facility) and
 `facility_sources` (one row per source record: `source`, `source_id`, licence, attribution, distance to the anchor).
-Records of a compatible kind within 500 m are one facility; authoritative sources (GEM, WRI) supply the name and
-coordinates, OSM fills the rest. Nothing is downloaded by the code: each file is obtained under its own terms.
+Records of a compatible kind within 500 m are one facility (anchored, not chained); authoritative sources (GEM, WRI)
+supply the name and coordinates, OSM fills the rest, and the merged matching radius covers every member's own
+circle. Capacity is summed within one source (unit-level trackers) and never across sources. GEM units that are
+proposed, announced, permitted, cancelled, shelved or retired are dropped: only built infrastructure emits heat.
+OSM footprint polygons are kept for power plants, refineries / oil & gas, steel, cement and chemical works
+(`facilities.footprint`), bounding boxes give an extent-based radius for the rest.
+Nothing is downloaded by the code: each file is obtained under its own terms.
 
 ```bash
-python -m src.facilities.cli build --osm data/thermal/sites_india.geojson     --wri data/facilities/raw/global_power_plant_database.csv     --gem data/facilities/raw/gem_coal_plants.xlsx:coal_plant --gem data/facilities/raw/gem_steel.xlsx:steel     --vnf data/facilities/raw/vnf_flares.csv --out data/facilities [--postgis]
+# drop files into data/facilities/raw (GEM names are recognised: Global-Coal-Plant-Tracker-*.xlsx, ...)
+python -m src.facilities.cli build --osm data/thermal/sites_india.geojson --raw-dir data/facilities/raw     --out data/facilities [--postgis]
+# or explicitly: --wri <csv> --gem <file>:coal_plant|gas_plant|steel|coal_mine|cement|oil_gas_extraction --vnf <csv>
+# Docker: docker compose --profile bootstrap run --rm facilities
 ```
 
 Sources you leave out are skipped and the printed source counts say so. The thermal pipeline reads
-`data/facilities/facilities.geojson` first (`THERMAL_FACILITIES_GEOJSON`), and `GET /api/facilities` serves it
-with per-source licences; the map shows it as the "Facilities" layer with the attribution list.
+`data/facilities/facilities.geojson` first (`THERMAL_FACILITIES_GEOJSON`; the `facilities` table when
+`THERMAL_SITES_FROM_DB=1`). `GET /api/facilities` (bbox / kind / source filters) serves the PostGIS table when the
+API runs with `DATA_MODE=postgis`, the files otherwise, always with per-source licences; `GET /api/facilities/{id}`
+returns the footprint and every merged source record. On the map the "Facilities" layer lists the attributions,
+blue dots are confirmed by 2+ sources, and a click shows the sources with licences and draws the OSM outline.
+
+Current build (2026-10-15): 12,567 facilities from 19,497 OSM records and 397 WRI GPPD thermal plants; 247 plants
+are confirmed by both, 580 carry an OSM footprint. GEM and VIIRS Nightfire are supported but **not loaded yet**
+(GEM needs a registration form, VNF a free EOG account). On the same FIRMS window the merged facilities change
+14 of 5,384 sources: 6 persistent sources gain a power plant only WRI lists; 8 crop/vegetation fires within a
+plant's (larger, merged) radius become "fire candidate", which is the known cost of radius-based matching.
 
 | Source | Licence | Access |
 |---|---|---|

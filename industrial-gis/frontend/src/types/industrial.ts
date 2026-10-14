@@ -303,6 +303,8 @@ export interface FacilityProperties {
   source_count: number;
   sources: string;
   attribution: string;
+  fuel?: string | null;
+  has_footprint?: boolean;
 }
 
 export interface FacilityFeature {
@@ -317,4 +319,20 @@ export interface FacilityCollection {
   type: 'FeatureCollection';
   features: FacilityFeature[];
   meta: { available: boolean; total: number; returned: number; truncated?: boolean; sources: FacilitySourceInfo[]; reason?: string };
+}
+
+export interface FacilitySourceRecord {
+  facility_id: string;
+  source: string;
+  source_id: string;
+  name: string | null;
+  distance_m: number | null;
+  url: string | null;
+  licence: string;
+  attribution: string;
+}
+
+export interface FacilityDetail extends FacilityFeature {
+  footprint: { type: string; coordinates: unknown } | null;
+  source_records: FacilitySourceRecord[];
 }

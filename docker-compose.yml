@@ -46,6 +46,7 @@ services:
     environment:
       <<: *db-env
       DATA_MODE: postgis
+      FACILITIES_DIR: /data/thermal/facilities
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8080,http://localhost:5173}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-}
       THERMAL_DATA_DIR: /data/thermal/live
@@ -94,6 +95,7 @@ services:
     environment:
       <<: *db-env
       THERMAL_DATA_DIR: /data/thermal/live
+      THERMAL_FACILITIES_GEOJSON: /data/thermal/facilities/facilities.geojson
       THERMAL_SITES_GEOJSON: /data/thermal/sites_india.geojson
       THERMAL_INTERVAL_SECONDS: ${THERMAL_INTERVAL_SECONDS:-600}
       THERMAL_WINDOW_DAYS: ${THERMAL_WINDOW_DAYS:-14}
@@ -113,6 +115,22 @@ services:
     entrypoint: ["python", "scripts/fetch_thermal_sites.py", "--out", "/data/thermal/sites_india.geojson"]
     volumes:
       - thermaldata:/data/thermal
+
+  # One-off (re-run after adding source files): merge OSM + WRI + GEM + VNF into the facility database.
+  # Drop the downloaded files into ./data/facilities/raw (see README "Facility database").
+  facilities:
+    profiles: ["bootstrap"]
+    image: thermotrace-worker:local
+    build: { context: ., dockerfile: docker/worker.Dockerfile }
+    entrypoint: ["python", "-m", "src.facilities.cli", "build", "--osm", "/data/thermal/sites_india.geojson",
+                 "--raw-dir", "/data/facilities/raw", "--out", "/data/thermal/facilities", "--postgis"]
+    environment: *db-env
+    volumes:
+      - thermaldata:/data/thermal
+      - ./data/facilities/raw:/data/facilities/raw:ro
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
 
   bootstrap:
     profiles: ["bootstrap"]

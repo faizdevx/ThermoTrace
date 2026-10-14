@@ -179,7 +179,10 @@ def main() -> None:
     det = archive.load_archive(ROOT / "data" / "archive" / "snpp", "SNPP")
     det = pipeline.clip_to_india(det, ROOT / "data" / "thermal")
     span = (det.acq_datetime.min(), det.acq_datetime.max())
-    idx = SiteIndex.from_geojson(ROOT / "data" / "thermal" / "sites_india.geojson")
+    merged = ROOT / "data" / "facilities" / "facilities.geojson"   # OSM + WRI (+ GEM/VNF) when built
+    sites_file = merged if merged.exists() else ROOT / "data" / "thermal" / "sites_india.geojson"
+    log.info("facility file: %s", sites_file.relative_to(ROOT))
+    idx = SiteIndex.from_geojson(sites_file)
     log.info("detections=%d span=%s..%s facilities=%d", len(det), span[0].date(), span[1].date(), len(idx))
 
     cells = build_cells(det, idx)
@@ -241,7 +244,7 @@ def main() -> None:
         "",
         "## Data",
         f"* VIIRS S-NPP archive `{span[0].date()}` to `{span[1].date()}` ({len(det):,} detections inside India), "
-        f"{len(idx):,} OSM facilities, ESA WorldCover 2021.",
+        f"{len(idx):,} merged facilities (OSM + WRI GPPD; data/facilities), ESA WorldCover 2021.",
         "* Unit: 7-day window source (same features as the live pipeline). Labels: long-run behaviour of the ~2 km cell "
         "(rules in the script header).",
         f"* Split: train = states outside the held-out set AND windows ending before 2026-04-01; test = held-out "

@@ -154,6 +154,11 @@ def load_archive(directory: Path, family: str | None = None) -> pd.DataFrame:
     files = sorted(directory.glob(f"{family or '*'}_*.parquet"))
     if not files:
         return pd.DataFrame(columns=KEEP)
-    df = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
+    frames = [f for f in (pd.read_parquet(p) for p in files) if len(f)]   # empty chunks have object columns
+    if not frames:
+        return pd.DataFrame(columns=KEEP)
+    df = pd.concat(frames, ignore_index=True)
     df["acq_datetime"] = pd.to_datetime(df["acq_datetime"], utc=True)
+    for col in ("latitude", "longitude", "frp", "bright_ti4", "bright_ti5", "scan", "track"):
+        df[col] = pd.to_numeric(df[col], errors="coerce")
     return df.drop_duplicates(["latitude", "longitude", "acq_datetime", "instrument"]).reset_index(drop=True)

@@ -16,7 +16,7 @@ from sqlalchemy.exc import DBAPIError, OperationalError
 
 from backend.app.config import get_settings
 from backend.app.db import check_db_connection
-from backend.app.services import catalog, events, imagery, sync_status, thermal_repo
+from backend.app.services import catalog, events, facilities_repo, imagery, sync_status, thermal_repo
 from backend.app.services import postgis_repo as repo
 from backend.app.services.postgis_repo import InvalidFilter, parse_bbox
 
@@ -377,6 +377,16 @@ def _thermal_backend():
                             detail="Thermal data not available yet (no snapshot / database run). "
                                    "Run: python -m src.thermal.cli refresh")
     return backend
+
+
+@router.get("/facilities")
+def facilities(bbox: str | None = None, kind: str | None = None, source: str | None = None,
+               limit: int = Query(default=5000, ge=1, le=facilities_repo.MAX_LIMIT)) -> dict[str, Any]:
+    """Merged industrial facilities (OSM + WRI + GEM + VNF) with per-source licence and attribution."""
+    try:
+        return facilities_repo.query(bbox=bbox, kind=kind, source=source, limit=limit)
+    except InvalidFilter as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.get("/thermal/classes")

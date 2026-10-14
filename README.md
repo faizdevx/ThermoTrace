@@ -129,6 +129,28 @@ Regenerate: `python industrial-data/scripts/train_classifier.py && python indust
 
 ---
 
+## Facility database (OSM + WRI + Global Energy Monitor + VIIRS Nightfire)
+
+Facilities are merged into one table with provenance: `facilities` (one row per physical facility) and
+`facility_sources` (one row per source record: `source`, `source_id`, licence, attribution, distance to the anchor).
+Records of a compatible kind within 500 m are one facility; authoritative sources (GEM, WRI) supply the name and
+coordinates, OSM fills the rest. Nothing is downloaded by the code: each file is obtained under its own terms.
+
+```bash
+python -m src.facilities.cli build --osm data/thermal/sites_india.geojson     --wri data/facilities/raw/global_power_plant_database.csv     --gem data/facilities/raw/gem_coal_plants.xlsx:coal_plant --gem data/facilities/raw/gem_steel.xlsx:steel     --vnf data/facilities/raw/vnf_flares.csv --out data/facilities [--postgis]
+```
+
+Sources you leave out are skipped and the printed source counts say so. The thermal pipeline reads
+`data/facilities/facilities.geojson` first (`THERMAL_FACILITIES_GEOJSON`), and `GET /api/facilities` serves it
+with per-source licences; the map shows it as the "Facilities" layer with the attribution list.
+
+| Source | Licence | Access |
+|---|---|---|
+| OpenStreetMap | ODbL-1.0 | existing Overpass cache |
+| WRI Global Power Plant Database | CC BY 4.0 | free CSV |
+| Global Energy Monitor trackers | CC BY 4.0 (check each tracker) | free download after a form |
+| VIIRS Nightfire (EOG) | EOG terms | free account required |
+
 ## Architecture
 
 ```

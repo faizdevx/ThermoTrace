@@ -291,3 +291,30 @@ export interface ThermalImagery {
   composites?: { true_colour: string; swir: string };
   attribution?: string;
 }
+
+export interface FacilityProperties {
+  facility_id: string;
+  name: string | null;
+  kind: string;
+  radius_m: number;
+  capacity_mw: number | null;
+  status: string | null;
+  primary_source: string;
+  source_count: number;
+  sources: string;
+  attribution: string;
+}
+
+export interface FacilityFeature {
+  type: 'Feature';
+  geometry: PointGeometry;
+  properties: FacilityProperties;
+}
+
+export interface FacilitySourceInfo { id: string; name: string; licence: string; attribution: string }
+
+export interface FacilityCollection {
+  type: 'FeatureCollection';
+  features: FacilityFeature[];
+  meta: { available: boolean; total: number; returned: number; truncated?: boolean; sources: FacilitySourceInfo[]; reason?: string };
+}

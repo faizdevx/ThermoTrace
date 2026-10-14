@@ -116,6 +116,8 @@ interface MapViewProps {
   thermalColors?: Record<string, string>;
   selectedThermalId?: string | null;
   onSelectThermal?: (sourceId: string) => void;
+  /** Merged facility database (null = layer hidden). */
+  facilities?: import('@/types/industrial').FacilityCollection | null;
   /** Draw the OSM industrial-site markers (default true; the app starts with them off). */
   showSites?: boolean;
 }
@@ -127,7 +129,7 @@ export function thermalRadius(frpMax: number): number {
 export function MapView({
   sites: allSites, selectedSiteId, selectedSite, stateBoundaries, districtBoundaries,
   fitRequest, onSelectSite, onViewportChange,
-  thermal = null, thermalColors = {}, selectedThermalId = null, onSelectThermal, showSites = true,
+  thermal = null, thermalColors = {}, selectedThermalId = null, onSelectThermal, showSites = true, facilities = null,
 }: MapViewProps) {
   const sites = showSites ? allSites : null;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -139,6 +141,7 @@ export function MapView({
   const districtLayerRef = useRef<L.GeoJSON | null>(null);
   const selectedIdRef = useRef<string | null>(selectedSiteId);
   const thermalLayerRef = useRef<L.LayerGroup | null>(null);
+  const facilityLayerRef = useRef<L.LayerGroup | null>(null);
   const thermalMarkersRef = useRef<Map<string, { marker: L.CircleMarker; sig: string }>>(new Map());
   const onSelectThermalRef = useRef(onSelectThermal);
   useEffect(() => { onSelectThermalRef.current = onSelectThermal; }, [onSelectThermal]);
@@ -158,6 +161,8 @@ export function MapView({
     map.createPane('outline').style.zIndex = '450';
     map.createPane('thermal').style.zIndex = '420';
     thermalLayerRef.current = L.layerGroup([], { pane: 'thermal' }).addTo(map);
+    map.createPane('facilities').style.zIndex = '410';
+    facilityLayerRef.current = L.layerGroup([], { pane: 'facilities' }).addTo(map);
 
     // Basemap: OpenStreetMap standard tiles (https://operations.osmfoundation.org/policies/tiles/ - fine for
     // light use; set VITE_TILE_URL to your own tile provider for production traffic). Map DATA: OSM (ODbL).
@@ -292,6 +297,27 @@ export function MapView({
       existing.set(p.source_id, { marker, sig });
     }
   }, [thermal, thermalColors]);
+
+  useEffect(() => {
+    const layer = facilityLayerRef.current;
+    const map = mapRef.current;
+    if (!layer || !map) return;
+    layer.clearLayers();
+    if (!facilities?.features.length) return;
+    const renderer = L.canvas({ pane: 'facilities', padding: 0.3 });
+    for (const f of facilities.features) {
+      const p = f.properties;
+      const [lon, lat] = f.geometry.coordinates;
+      const multi = p.source_count > 1;
+      L.circleMarker([lat, lon], {
+        renderer, pane: 'facilities', radius: multi ? 4 : 3, weight: 1, color: '#1e293b',
+        fillColor: multi ? '#0ea5e9' : '#94a3b8', fillOpacity: 0.85,
+      }).bindTooltip(
+        `${p.name ?? 'Unnamed facility'} - ${p.kind.replace(/_/g, ' ')}${p.capacity_mw ? ` - ${Math.round(p.capacity_mw)} MW` : ''}`
+        + ` | sources: ${p.sources.split(',').join(', ')}`,
+      ).addTo(layer);
+    }
+  }, [facilities]);
 
   useEffect(() => {
     for (const [id, { marker }] of thermalMarkersRef.current) {

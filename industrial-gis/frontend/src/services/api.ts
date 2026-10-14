@@ -161,6 +161,10 @@ export function fetchThermalStatus(signal?: AbortSignal): Promise<ThermalStatus>
   return requestJson('/thermal/status', { timeoutMs: HEALTH_TIMEOUT_MS * 2, signal });
 }
 
+export function fetchFacilities(signal?: AbortSignal): Promise<import('@/types/industrial').FacilityCollection> {
+  return requestJson('/facilities?limit=20000', { signal });
+}
+
 export function fetchThermalSources(
   filters: ThermalFilters & { limit?: number } = {},
   signal?: AbortSignal,

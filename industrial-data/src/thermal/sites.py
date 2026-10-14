@@ -111,6 +111,15 @@ class SiteIndex:
     @classmethod
     def from_postgis(cls, dsn: str) -> "SiteIndex":
         import psycopg2
+        # the merged facility table wins when it has been built
+        with psycopg2.connect(dsn) as conn, conn.cursor() as cur:
+            cur.execute("SELECT to_regclass('public.facilities')")
+            if cur.fetchone()[0]:
+                cur.execute("SELECT facility_id, name, kind, ST_Y(geometry), ST_X(geometry), radius_m FROM facilities")
+                rows = [{"ref": r[0], "name": r[1], "kind": r[2], "lat": r[3], "lon": r[4], "radius_m": r[5]}
+                        for r in cur.fetchall()]
+                if rows:
+                    return cls(pd.DataFrame(rows, columns=["ref", "name", "kind", "lat", "lon", "radius_m"]))
         sql = """SELECT site_id, name, tags, ST_Y(ST_PointOnSurface(geometry)), ST_X(ST_PointOnSurface(geometry)),
                         CASE WHEN GeometryType(geometry) LIKE '%%POLYGON'
                              THEN sqrt(ST_Area(geometry::geography) / pi()) END

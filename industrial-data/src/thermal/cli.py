@@ -39,6 +39,10 @@ def load_sites() -> SiteIndex | None:
             return SiteIndex.from_postgis(dsn.replace("postgresql+psycopg2://", "postgresql://"))
         except Exception as exc:  # noqa: BLE001
             logger.warning("could not read facilities from PostGIS (%s); falling back to GeoJSON", exc)
+    # merged, provenance-tracked facility database first (python -m src.facilities.cli build)
+    merged = env_path("THERMAL_FACILITIES_GEOJSON", "data/facilities/facilities.geojson")
+    if merged.exists():
+        return SiteIndex.from_geojson(merged)
     geojson = env_path("THERMAL_SITES_GEOJSON", "data/thermal/sites_india.geojson")
     if geojson.exists():
         return SiteIndex.from_geojson(geojson)

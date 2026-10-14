@@ -16,6 +16,7 @@ import {
   checkHealth,
   fetchBoundaries,
   fetchFilterOptions,
+  fetchFacilities,
   fetchIndustrialSite,
   fetchIndustries,
   fetchStatistics,
@@ -30,6 +31,7 @@ import type {
   FeatureCollection,
   FilterOptionsResponse,
   HealthResponse,
+  FacilityCollection,
   IndustrialSiteFeature,
   RevisionEvent,
   StatisticsResponse,
@@ -51,6 +53,8 @@ export default function App() {
   const [viewport, setViewport] = useState<MapViewport | null>(null);
   // the OSM site layer is a North-East pilot; the thermal layer is the default view
   const [showSites, setShowSites] = useState(false);
+  const [showFacilities, setShowFacilities] = useState(true);
+  const [facilities, setFacilities] = useState<FacilityCollection | null>(null);
 
   // ── Data state ────────────────────────────────────────────────────────────
   const [options, setOptions] = useState<FilterOptionsResponse | null>(null);
@@ -99,6 +103,12 @@ export default function App() {
     }, LIVE_DEBOUNCE_MS);
   }, [refreshSyncStatus]);
   useEffect(() => () => { if (liveTimer.current) clearTimeout(liveTimer.current); }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchFacilities(controller.signal).then(setFacilities).catch(() => { /* layer simply stays empty */ });
+    return () => controller.abort();
+  }, []);
 
   const thermal = useThermal();
   const refreshThermal = thermal.refresh;
@@ -474,6 +484,7 @@ export default function App() {
           <MapView
             sites={sites}
             showSites={showSites}
+            facilities={showFacilities ? facilities : null}
             selectedSiteId={selectedSiteId}
             selectedSite={selectedSite}
             stateBoundaries={stateBoundaries}
@@ -494,6 +505,15 @@ export default function App() {
             borderRadius: 12, padding: '8px 12px', fontSize: 11, boxShadow: '0 2px 12px rgba(15,23,42,0.12)',
           }}>
             <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', margin: '0 0 4px' }}>Layers</p>
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}
+              title="Merged OSM + WRI + Global Energy Monitor + VIIRS Nightfire facilities (blue = confirmed by 2+ sources)">
+              <input id="toggle-facilities" type="checkbox" checked={showFacilities} onChange={e => setShowFacilities(e.target.checked)} /> Facilities ({facilities?.meta.total ?? 0})
+            </label>
+            {showFacilities && facilities?.meta.sources.length ? (
+              <p style={{ fontSize: 9, color: '#64748b', margin: '2px 0 4px', maxWidth: 200, lineHeight: 1.35 }}>
+                {facilities.meta.sources.map(s => s.attribution).join('; ')}
+              </p>
+            ) : null}
             <label style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}
               title="OpenStreetMap industrial sites (North-East pilot extract, not national coverage)">
               <input id="toggle-sites" type="checkbox" checked={showSites} onChange={e => setShowSites(e.target.checked)} /> Industrial sites (OSM pilot)

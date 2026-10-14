@@ -144,7 +144,6 @@ export function MapView({
   const selectedIdRef = useRef<string | null>(selectedSiteId);
   const thermalLayerRef = useRef<L.LayerGroup | null>(null);
   const facilityLayerRef = useRef<L.LayerGroup | null>(null);
-  const facilityRendererRef = useRef<L.Renderer | null>(null);
   const footprintLayerRef = useRef<L.LayerGroup | null>(null);
   const thermalMarkersRef = useRef<Map<string, { marker: L.CircleMarker; sig: string }>>(new Map());
   const onSelectThermalRef = useRef(onSelectThermal);
@@ -169,6 +168,8 @@ export function MapView({
     facilityLayerRef.current = L.layerGroup([], { pane: 'facilities' }).addTo(map);
     footprintLayerRef.current = L.layerGroup([], { pane: 'facilities' }).addTo(map);
     map.on('popupclose', () => footprintLayerRef.current?.clearLayers());
+    // dev builds only: lets scripts/capture_dashboard.py drive the map for README screenshots
+    if (import.meta.env.DEV) (window as unknown as { __thermotraceMap?: L.Map }).__thermotraceMap = map;
 
     // Basemap: OpenStreetMap standard tiles (https://operations.osmfoundation.org/policies/tiles/ - fine for
     // light use; set VITE_TILE_URL to your own tile provider for production traffic). Map DATA: OSM (ODbL).
@@ -311,9 +312,12 @@ export function MapView({
     layer.clearLayers();
     footprintLayerRef.current?.clearLayers();
     if (!facilities?.features.length) return;
-    // one canvas renderer for the layer's lifetime (a new one per update would leak canvases)
-    const renderer = facilityRendererRef.current
-      ?? (facilityRendererRef.current = L.canvas({ pane: 'facilities', padding: 0.3 }));
+    // Share the thermal canvas: a second canvas in a lower pane never receives mouse events (the
+    // top canvas swallows them), so facility tooltips/clicks would be dead. Facilities are sent to the
+    // back of the shared draw order instead, so thermal sources stay on top and win hit-testing.
+    const holder = map as unknown as { _thermalRenderer?: L.Renderer };
+    const renderer = holder._thermalRenderer
+      ?? (holder._thermalRenderer = L.canvas({ pane: 'thermal', padding: 0.3 }));
     const controller = new AbortController();
     for (const f of facilities.features) {
       const p = f.properties;
@@ -339,6 +343,7 @@ export function MapView({
         }).catch(() => { /* aborted or offline: tooltip still shows the basics */ });
       });
       marker.addTo(layer);
+      marker.bringToBack();
     }
     return () => controller.abort();
   }, [facilities]);

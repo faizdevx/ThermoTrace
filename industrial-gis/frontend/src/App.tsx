@@ -423,6 +423,7 @@ export default function App() {
         )}
         {!isRefreshing && !error && sites && (
           <span id="visible-count" style={{ fontSize: 12, color: '#64748b' }} aria-live="polite">
+            {!showSites && <>OSM industrial-sites pilot layer is hidden - tick <em>Industrial sites</em> under Layers to draw it. </>}
             <strong style={{ color: '#0f172a' }}>{visibleCount.toLocaleString()}</strong>
             {truncated && <> of {viewTotal.toLocaleString()}</>} site{visibleCount !== 1 ? 's' : ''} in the map view
             {activeQuery && <> matching <em style={{ color: '#0ea5e9' }}>"{activeQuery}"</em></>}
@@ -557,7 +558,7 @@ export default function App() {
             </div>
           )}
 
-          {!isInitialLoad && !error && sites && sites.features.length === 0 && (
+          {(showSites || datasetEmpty) && !isInitialLoad && !error && sites && sites.features.length === 0 && (
             <div style={{
               position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 500,
               textAlign: 'center', background: 'rgba(255,255,255,0.95)', borderRadius: 16, padding: '24px 32px',

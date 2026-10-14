@@ -45,9 +45,13 @@ ThermoTrace is a Web GIS that does two things on one map:
 
 ## Dashboard
 
-![ThermoTrace dashboard: thermal sources by class over the industrial-sites map](docs/images/dashboard.png)
+![ThermoTrace dashboard: classified FIRMS thermal sources over the merged facility layer](docs/images/dashboard.png)
 
-_Live PostGIS-backed dashboard captured 2026-10-10: 2,794 OSM industrial sites (north-east pilot) and 3,159 classified FIRMS thermal sources from 12,676 VIIRS detections, 2 alerts, newest detection ~6 h old. Filled circles are thermal sources (size = radiative power, colour = class, dark ring = alert); numbered discs are clusters; the left panel filters by class, window, minimum power and alerts, and exports CSV/GeoJSON._
+_Dashboard captured 2026-10-15 from the local PostGIS stack: 3,464 classified FIRMS thermal sources from 13,234 VIIRS detections (the status chip honestly reads "delayed": the newest detection in that database was 4 days old), over the 12,567-facility layer (small dots; blue = confirmed by two or more sources). Filled circles are thermal sources (size = radiative power, colour = class, dark ring = alert). The left panel filters by class, window, minimum power and alerts and exports CSV/GeoJSON; the top-right box toggles the facility layer (with the source attributions), the OSM north-east pilot layer and the boundaries._
+
+![Facility provenance: Tirora TPP with its OSM outline and the seven merged source records](docs/images/facility_provenance.png)
+
+_Clicking a facility shows where it comes from. Tirora TPP (3,300 MW, coal) is one facility built from six OpenStreetMap records and one WRI Global Power Plant Database record, each listed with its source id, distance to the anchor and licence; the blue outline is the OpenStreetMap footprint of the plant._
 
 ![Sentinel-2 true-colour and SWIR chips for a persistent industrial thermal source](docs/images/sentinel2_chip.png)
 
@@ -78,6 +82,14 @@ All figures are produced by `industrial-data/scripts/make_figures.py` from the r
 
 Regenerate: `python industrial-data/scripts/train_classifier.py && python industrial-data/scripts/make_figures.py` (matplotlib is only needed for the figures); the dashboard screenshot comes from `industrial-data/scripts/capture_dashboard.py` against a running app.
 
+## Project status
+
+| Phase | Scope | State |
+|---|---|---|
+| 0 | Clean foundation: legacy tests green, thermal layer is the default map, honest README badges | **done** |
+| 1 | Facility database with provenance: OSM + WRI GPPD + GEM + VIIRS Nightfire, PostGIS, API, map layer | **done for OSM + WRI**; GEM and VNF loaders are tested but their files are not loaded yet (registration/account required) |
+| 2-9 | 12-month FIRMS baseline per facility, labelled evaluation set, model in the live pipeline, imagery as features, alerting, replay demo, judge-facing dashboard | planned - see [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) |
+
 ## What is implemented (and verified)
 
 | Area | Status |
@@ -87,6 +99,7 @@ Regenerate: `python industrial-data/scripts/train_classifier.py && python indust
 | Thermal layer on the map, class filters, alert flag, source detail panel with reasons + detection timeline, Sentinel-2 true-colour/SWIR chip (clearest scene within 5 days, < 30 % cloud, `/api/thermal/sources/{id}/imagery`), CSV/GeoJSON export | working (frontend tests + browser check of the map layer) |
 | Snapshot **and** PostGIS storage (`thermal_sources`, `thermal_detections`, `thermal_runs`) | PostGIS path run against a real PostGIS container |
 | OSM industrial sites: baseline import + incremental replication (osm2pgsql) with durable checkpoint, locking, backoff, revisions | 23 lifecycle tests; baseline imported (below); catching up to the live diff feed **not observed to completion** |
+| Merged facility database (OSM 19,497 records + WRI GPPD 397 plants -> 12,567 facilities, 247 confirmed by both, 580 with OSM footprints) with per-record source id, licence and attribution; `facilities` / `facility_sources` tables, `/api/facilities` (PostGIS or files), map layer with provenance popup | 18 unit tests, 5 API tests (files), 4 API tests against PostGIS, 3 popup tests; PostGIS load run against a real PostGIS container |
 | REST API, SSE change notifications with polling fallback, live-status panel | tests below |
 | Government sources (India Industrial Land Bank, ICLP, NCoG) | **not integrated** - see [Data sources](#data-sources) |
 
@@ -213,6 +226,7 @@ cp .env.example .env                      # set POSTGRES_PASSWORD (URL-safe)
 docker compose up -d --build db migrate api worker thermal frontend
 docker compose --profile bootstrap run --rm bootstrap          # one-time OSM baseline (OSM_REGION in .env)
 docker compose --profile bootstrap run --rm thermal-bootstrap  # one-time India-wide facility cache for thermal matching
+docker compose --profile bootstrap run --rm facilities         # merge OSM + WRI/GEM/VNF files from data/facilities/raw
 # UI: http://localhost:8080   API docs: http://localhost:8000/api/docs
 ```
 
@@ -222,7 +236,8 @@ Standalone thermal analysis, no database:
 cd industrial-data
 pip install -r requirements.txt
 python scripts/fetch_thermal_sites.py --out ../data/thermal/sites_india.geojson   # one bounded Overpass query
-THERMAL_SITES_GEOJSON=../data/thermal/sites_india.geojson \
+python -m src.facilities.cli build --osm ../data/thermal/sites_india.geojson --out ../data/facilities   # add --raw-dir for WRI/GEM/VNF files
+THERMAL_FACILITIES_GEOJSON=../data/facilities/facilities.geojson \
   python -m src.thermal.cli refresh --out ../data/thermal/live                   # writes the snapshot the API serves
 ```
 
@@ -236,6 +251,7 @@ Development without Docker for the app: run PostGIS yourself, then `uvicorn back
 | `GET /industries`, `/industries/search`, `/industries/{id}`, `/industries/export` | sites; filters `bbox,state,district,industry_type,status,confidence,q`, `limit/offset`; export streams **all** matches |
 | `GET /statistics`, `/filters/options`, `/boundaries/{level}` | counts over the filter scope; cascading options; simplified boundaries |
 | `GET /thermal/sources`, `/thermal/sources/{id}`, `/thermal/stats`, `/thermal/export`, `/thermal/classes`, `/thermal/status` | thermal layer; filters `thermal_class,bbox,state,site_kind,min_frp,alerts_only,hours` |
+| `GET /facilities`, `/facilities/{id}` | merged facilities (`bbox,kind,source,limit`) with per-source licences; detail adds the OSM footprint and every source record |
 | `GET /sync/status`, `/sync/history` | per-source freshness (`live/syncing/delayed/offline/not_configured/awaiting_setup`) |
 | `GET /events` | Server-Sent Events: `hello`, `revision`, `sync`, `thermal`; the UI falls back to 10 s polling |
 | `POST /admin/sync/trigger` | asks the worker to sync now; needs `ADMIN_TOKEN` (`X-Admin-Token`), disabled when unset |
@@ -246,22 +262,26 @@ Development without Docker for the app: run PostGIS yourself, then `uvicorn back
 
 ```bash
 cd industrial-gis && DATA_MODE=synthetic python -m pytest backend/tests          # API + thermal contracts, no DB
-cd industrial-data && python -m pytest tests/thermal                              # classifier/pipeline, no DB/network
+cd industrial-data && python -m pytest tests                                      # pipeline, thermal, facilities (PostGIS ones skip)
+TEST_DATABASE_URL=postgresql://user:pw@localhost:5432/postgres DATA_MODE=postgis \
+  python -m pytest industrial-gis/backend/tests/postgis                           # API against PostGIS (throw-away database)
 TEST_DATABASE_URL=postgresql://user:pw@localhost:5432/postgres python -m pytest tests/sync   # needs PostGIS
 cd industrial-gis/frontend && npx tsc --noEmit && npm test && npm run build
 ```
 
-Results on the development machine (2026-10-09): backend `54 passed, 30 skipped` (the 30 PostGIS tests need a database); `tests/thermal` 24 passed; `tests/sync` 23 passed; frontend `tsc` clean, vitest 27 passed. The PostGIS API contract suite (`backend/tests/postgis`) was run once against a real PostGIS (2 of its 3 first tests passed before one expected count was corrected) and **not re-run to completion**; CI runs it. The legacy batch-pipeline suite (`industrial-data/tests`, excluding `sync`/`thermal`) has **15 failing tests** that predate this work and were not fixed. `docker compose build frontend` was not verified.
+Results on the development machine (2026-10-15): `industrial-data/tests` 251 passed, 23 skipped (the skips need PostGIS); API synthetic suite 61 passed; API against PostGIS 34 passed (includes the facility tests); frontend `tsc` clean, vitest 30 passed. The CI workflow runs the synthetic, thermal/sync and PostGIS jobs; its result on GitHub is not recorded here.
 
 ## Configuration
 
-See `.env.example`. Key variables: `POSTGRES_*`, `ALLOWED_ORIGINS`, `ADMIN_TOKEN`, `OSM_REGION`, `OSM_POLL_INTERVAL_SECONDS`, `OSM_FRESHNESS_TARGET_SECONDS`, `FIRMS_MAP_KEY` (optional), `THERMAL_INTERVAL_SECONDS` (default 600), `THERMAL_WINDOW_DAYS`, `VITE_TILE_URL`. Never commit `.env`.
+See `.env.example`. Key variables: `POSTGRES_*`, `ALLOWED_ORIGINS`, `ADMIN_TOKEN`, `OSM_REGION`, `OSM_POLL_INTERVAL_SECONDS`, `OSM_FRESHNESS_TARGET_SECONDS`, `FIRMS_MAP_KEY` (optional), `THERMAL_INTERVAL_SECONDS` (default 600), `THERMAL_FACILITIES_GEOJSON`, `FACILITIES_DIR`, `FACILITIES_BACKEND` (`auto`/`files`/`postgis`), `THERMAL_WINDOW_DAYS`, `VITE_TILE_URL`. Never commit `.env`.
 
 ## Known limitations
 
 * The live classifier is rule-based with expert priors. A trained model beats it on a held-out split, but against **weak rule-derived labels, not ground truth**; incident evidence covers only 23 of 40 documented incidents (17 could not be located) and is mostly near the detection floor. Agricultural vs. other low-power vegetation fires and industrial vs. unmapped industry depend on OSM completeness.
 * VIIRS is 375 m and ~3 h behind real time; a short-lived industrial event can fall between overpasses. Persistence needs history: the first run only has the 7 days FIRMS publishes (history accumulates afterwards).
-* Facility matching uses a type-based radius around a representative point in standalone mode; large plants can be missed or over-matched. In PostGIS mode polygon equivalent radius is used.
+* Facility matching uses a radius around a representative point (the equivalent-area radius of the OSM outline where one is stored, else the outline's bounding box, else a kind default); large plants can be missed or over-matched, and merging records widens the circle (on one FIRMS window, 8 of 5,384 crop/vegetation sources became "fire candidate" for that reason).
+* Only OSM and WRI are loaded in the facility database. Global Energy Monitor trackers (steel, coal mines, cement, oil and gas) need a registration form and VIIRS Nightfire a free EOG account; their loaders are tested on fixtures, not on the real files, and their licence strings are the maintainers' reading of the published terms.
+* OSM footprints are stored only for power plants, refineries, steel, cement and chemical works (3,800 outlines, 580 attached to merged facilities); mines, landfills and generic works are bounding boxes.
 * OSM sites cover only the imported region; thermal facility matching is India-wide. 105 pilot sites sit outside geoBoundaries' state polygons (neighbouring countries / border simplification).
 * OSM industrial tags describe land use or features, not confirmed operation; `status` is `mapped` unless disused/abandoned/construction is tagged.
 * Regional OSM diffs are published about daily, so freshness of the sites layer is bounded by the source, not the worker.

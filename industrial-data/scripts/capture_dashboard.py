@@ -2,7 +2,9 @@
 
 Needs Edge/Chrome installed and the app served (default http://localhost:5173) with data loaded.
 Waits until the thermal layer has finished loading, then saves:
-  docs/images/dashboard.png      the map with the thermal layer
+  docs/images/dashboard.png             the map with the thermal layer + merged facilities
+  docs/images/facility_provenance.png   a multi-source power plant: OSM outline + every source record + licence
+(the provenance shot needs the dev server: it drives the Leaflet map through window.__thermotraceMap)
 """
 from __future__ import annotations
 
@@ -86,6 +88,28 @@ def main():
         OUT.mkdir(parents=True, exist_ok=True)
         cdp.shot(OUT / "dashboard.png")
         print("saved dashboard.png")
+
+        # --- facility provenance: biggest plant that has an OSM outline and 2+ sources -------------------
+        plant = cdp.js("""fetch('/api/facilities?kind=power_thermal&limit=20000').then(r => r.json()).then(d => {
+            const f = d.features.filter(x => x.properties.source_count > 1 && x.properties.has_footprint)
+                .sort((a, b) => (b.properties.capacity_mw || 0) - (a.properties.capacity_mw || 0))[0];
+            return f ? {lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], name: f.properties.name} : null; })""")
+        if plant:
+            cdp.js(f"(() => {{ document.getElementById('toggle-states')?.click(); "
+                   f"window.__thermotraceMap.setView([{plant['lat']}, {plant['lon']}], 12, {{animate: false}}); }})()")
+            time.sleep(4)
+            pt = cdp.js(f"""(() => {{ const m = window.__thermotraceMap; const p = m.latLngToContainerPoint([{plant['lat']}, {plant['lon']}]);
+                const r = m.getContainer().getBoundingClientRect(); return {{x: r.left + p.x, y: r.top + p.y}}; }})()""")
+            cdp.call("Input.dispatchMouseEvent", type="mouseMoved", x=pt["x"] - 6, y=pt["y"] - 6)
+            cdp.call("Input.dispatchMouseEvent", type="mouseMoved", x=pt["x"], y=pt["y"])     # canvas hit-test needs hover
+            time.sleep(0.5)
+            for kind in ("mousePressed", "mouseReleased"):
+                cdp.call("Input.dispatchMouseEvent", type=kind, x=pt["x"], y=pt["y"], button="left", clickCount=1)
+            wait(cdp, "!!document.querySelector('.leaflet-popup-content') && /Sources \(/.test(document.querySelector('.leaflet-popup-content').innerText)",
+                 30, "facility popup")
+            time.sleep(2)
+            cdp.shot(OUT / "facility_provenance.png")
+            print("saved facility_provenance.png for", plant["name"])
 
     finally:
         proc.kill()

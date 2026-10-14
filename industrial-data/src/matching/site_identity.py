@@ -218,6 +218,10 @@ class SiteIdentityIndex:
                 return site_id
         return None
 
+    def get(self, source_key: str) -> str | None:
+        """Return the site_id known for a ``source_key`` such as ``osm:way:101``, or None."""
+        return self._source_key_to_site_id.get(source_key)
+
     def register(self, site_id: str, records: list[IndustrialRecord]) -> None:
         """Register a new site_id → source key mapping (for intra-run lookup)."""
         for record in records:
@@ -233,7 +237,9 @@ class SiteIdentityIndex:
 
 def resolve_site_id(
     records: list[IndustrialRecord],
-    index: SiteIdentityIndex,
+    index: SiteIdentityIndex | None = None,
+    *,
+    identity_index: SiteIdentityIndex | None = None,
 ) -> str:
     """Return a stable site_id for a cluster of records.
 
@@ -255,6 +261,7 @@ def resolve_site_id(
     str
         A stable, deterministic site_id UUID.
     """
+    index = index or identity_index or SiteIdentityIndex()
     # Step 1: look up existing site
     existing = index.lookup(records)
     if existing:

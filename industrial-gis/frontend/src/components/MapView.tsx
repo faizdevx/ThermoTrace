@@ -116,6 +116,8 @@ interface MapViewProps {
   thermalColors?: Record<string, string>;
   selectedThermalId?: string | null;
   onSelectThermal?: (sourceId: string) => void;
+  /** Draw the OSM industrial-site markers (default true; the app starts with them off). */
+  showSites?: boolean;
 }
 
 export function thermalRadius(frpMax: number): number {
@@ -123,10 +125,11 @@ export function thermalRadius(frpMax: number): number {
 }
 
 export function MapView({
-  sites, selectedSiteId, selectedSite, stateBoundaries, districtBoundaries,
+  sites: allSites, selectedSiteId, selectedSite, stateBoundaries, districtBoundaries,
   fitRequest, onSelectSite, onViewportChange,
-  thermal = null, thermalColors = {}, selectedThermalId = null, onSelectThermal,
+  thermal = null, thermalColors = {}, selectedThermalId = null, onSelectThermal, showSites = true,
 }: MapViewProps) {
+  const sites = showSites ? allSites : null;
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);

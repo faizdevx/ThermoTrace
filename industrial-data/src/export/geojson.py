@@ -77,8 +77,6 @@ def _to_json_compatible(val: Any) -> Any:
         return val.isoformat()
     if isinstance(val, Decimal):
         return float(val)
-    if pd.isna(val):
-        return None
     if isinstance(val, (list, tuple, set)):
         return [_to_json_compatible(item) for item in val]
     if isinstance(val, dict):
@@ -95,6 +93,11 @@ def _to_json_compatible(val: Any) -> Any:
             except Exception:
                 pass
         return val
+    try:
+        if pd.isna(val):
+            return None
+    except (TypeError, ValueError):
+        pass
     return str(val)
 
 

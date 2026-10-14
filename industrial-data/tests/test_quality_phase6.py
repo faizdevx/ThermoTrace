@@ -44,7 +44,8 @@ def test_build_quality_report_counts_geometry_and_coordinate_issues(tmp_path):
     assert report["total_records"] == 3
     assert report["duplicates"] == 1
     assert report["records_outside_india"] == 1
-    assert report["invalid_coordinates"] == 1
+    # (10 E, 60 N) is a valid coordinate, just outside India: counted above, not as invalid
+    assert report["invalid_coordinates"] == 0
     assert report["null_coordinates"] == 0
     assert report["crs_consistency"]["boundary"] is True
 

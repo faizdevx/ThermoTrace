@@ -73,6 +73,8 @@ def _make_osm_row(
 
 
 def _osm_gdf(*rows: dict) -> gpd.GeoDataFrame:
+    if not rows:
+        return gpd.GeoDataFrame({"osm_id": []}, geometry=gpd.GeoSeries([], crs="EPSG:4326"), crs="EPSG:4326")
     return gpd.GeoDataFrame(list(rows), geometry="geometry", crs="EPSG:4326")
 
 
@@ -355,12 +357,12 @@ class TestOverpassVersionCapture:
     def test_version_is_none_when_absent(self):
         gdf = overpass_elements_to_geodataframe(self._payload_with_meta())
         row = gdf[gdf["osm_id"] == 43].iloc[0]
-        assert row["osm_version"] is None
+        assert pd.isna(row["osm_version"])
 
     def test_changeset_is_none_when_absent(self):
         gdf = overpass_elements_to_geodataframe(self._payload_with_meta())
         row = gdf[gdf["osm_id"] == 43].iloc[0]
-        assert row["osm_changeset"] is None
+        assert pd.isna(row["osm_changeset"])
 
     def test_timestamp_still_captured(self):
         gdf = overpass_elements_to_geodataframe(self._payload_with_meta())

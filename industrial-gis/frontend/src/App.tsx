@@ -49,6 +49,8 @@ export default function App() {
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedConfidence, setSelectedConfidence] = useState('');
   const [viewport, setViewport] = useState<MapViewport | null>(null);
+  // the OSM site layer is a North-East pilot; the thermal layer is the default view
+  const [showSites, setShowSites] = useState(false);
 
   // ── Data state ────────────────────────────────────────────────────────────
   const [options, setOptions] = useState<FilterOptionsResponse | null>(null);
@@ -471,6 +473,7 @@ export default function App() {
 
           <MapView
             sites={sites}
+            showSites={showSites}
             selectedSiteId={selectedSiteId}
             selectedSite={selectedSite}
             stateBoundaries={stateBoundaries}
@@ -490,7 +493,12 @@ export default function App() {
             position: 'absolute', top: 12, right: 12, zIndex: 500, background: 'rgba(255,255,255,0.94)',
             borderRadius: 12, padding: '8px 12px', fontSize: 11, boxShadow: '0 2px 12px rgba(15,23,42,0.12)',
           }}>
-            <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', margin: '0 0 4px' }}>Boundaries</p>
+            <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', margin: '0 0 4px' }}>Layers</p>
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}
+              title="OpenStreetMap industrial sites (North-East pilot extract, not national coverage)">
+              <input id="toggle-sites" type="checkbox" checked={showSites} onChange={e => setShowSites(e.target.checked)} /> Industrial sites (OSM pilot)
+            </label>
+            <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', margin: '6px 0 4px' }}>Boundaries</p>
             <label style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}>
               <input id="toggle-states" type="checkbox" checked={showStates} onChange={e => setShowStates(e.target.checked)} /> States
             </label>
@@ -500,8 +508,8 @@ export default function App() {
             </label>
           </div>
 
-          {/* Legend */}
-          <div style={{
+          {/* Legend (site markers only) */}
+          {showSites && <div style={{
             position: 'absolute', bottom: 16, left: 16, zIndex: 500, background: 'rgba(255,255,255,0.93)',
             backdropFilter: 'blur(10px)', borderRadius: 12, padding: '8px 12px', fontSize: 11,
             boxShadow: '0 2px 12px rgba(15,23,42,0.12)', maxWidth: 190,
@@ -518,7 +526,7 @@ export default function App() {
             <p style={{ fontSize: 9, color: '#94a3b8', margin: '4px 0 0', lineHeight: 1.35 }}>
               Calculated from OSM tags. Not government verification.
             </p>
-          </div>
+          </div>}
 
           {liveToast && (
             <div role="status" style={{

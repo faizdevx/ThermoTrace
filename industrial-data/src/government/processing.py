@@ -86,6 +86,7 @@ def _coerce_schema_config(schema_config: GovernmentSchemaConfig | dict[str, Any]
         unknown_values=list(schema_config.get("unknown_values", [])),
         not_applicable_values=list(schema_config.get("not_applicable_values", [])),
         coordinate_candidates={key: list(values) for key, values in coordinate_candidates.items()},
+        operational_status_candidates=list(schema_config.get("operational_status_candidates", [])),
     )
 
 

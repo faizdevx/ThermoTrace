@@ -331,6 +331,9 @@ def build_refresh_merge(
         if isinstance(nw_row, pd.DataFrame):
             nw_row = nw_row.iloc[0]
 
+        # decide "newer" BEFORE version metadata is overwritten below
+        feature_updated = _is_newer(ex_shared.loc[idx], nw_row)
+
         # Advance last_seen and updated_at
         ex_shared.at[idx, "last_seen"] = today
         ex_shared.at[idx, "extraction_date"] = today
@@ -343,7 +346,7 @@ def build_refresh_merge(
                     ex_shared.at[idx, version_col] = nw_val
 
         # Replace geometry with new geometry when the feature was updated
-        if _is_newer(ex_shared.loc[idx], nw_row):
+        if feature_updated:
             ex_shared.at[idx, "geometry"] = nw_row["geometry"]
             # Update tags
             if "raw_tags" in nw_row.index:

@@ -22,17 +22,13 @@
   <img src="https://img.shields.io/badge/Pandas-DataProcessing-150458?logo=pandas&logoColor=white">
   <img src="https://img.shields.io/badge/NumPy-ScientificComputing-013243?logo=numpy&logoColor=white">
   <img src="https://img.shields.io/badge/Scikit--learn-MachineLearning-F7931E?logo=scikit-learn&logoColor=white">
-  <img src="https://img.shields.io/badge/SciPy-ScientificComputing-8CAAE6?logo=scipy&logoColor=white">
   <img src="https://img.shields.io/badge/OpenStreetMap-OSM-7EBC6F?logo=openstreetmap&logoColor=white">
   <img src="https://img.shields.io/badge/NASA%20FIRMS-ThermalDetection-E03C31?logo=nasa&logoColor=white">
   <img src="https://img.shields.io/badge/Sentinel--2-RemoteSensing-003247?logo=esa&logoColor=white">
   <img src="https://img.shields.io/badge/WorldCover-LandCover-003247?logo=esa&logoColor=white">
   <img src="https://img.shields.io/badge/React-Frontend-61DAFB?logo=react&logoColor=black">
+  <img src="https://img.shields.io/badge/Leaflet-GISMapping-199900?logo=leaflet&logoColor=white">
   <img src="https://img.shields.io/badge/TypeScript-Frontend-3178C6?logo=typescript&logoColor=white">
-  <img src="https://img.shields.io/badge/MapLibre-GISMapping-396CB2?logo=maplibre&logoColor=white">
-  <img src="https://img.shields.io/badge/Plotly-DataVisualization-3F4F75?logo=plotly&logoColor=white">
-  <img src="https://img.shields.io/badge/Redis-Cache-DC382D?logo=redis&logoColor=white">
-  <img src="https://img.shields.io/badge/Celery-TaskQueue-37814A?logo=celery&logoColor=white">
   <img src="https://img.shields.io/badge/Docker-Containerization-2496ED?logo=docker&logoColor=white">
 </p>
 

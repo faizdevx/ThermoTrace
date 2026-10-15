@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { fetchThermalImagery } from '@/services/api';
-import type { ThermalClassInfo, ThermalDetection, ThermalFeature, ThermalImagery } from '@/types/industrial';
+import { baselineSummary, MONTH_LABELS, type Deviation } from '@/components/baselineSummary';
+import type { ThermalClassInfo, ThermalDetection, ThermalFeature, ThermalImagery, ThermalProperties } from '@/types/industrial';
 
 const NA = 'Not available';
 
@@ -83,6 +84,52 @@ interface Props {
   onClose: () => void;
 }
 
+const DEVIATION_STYLE: Record<Deviation, { bg: string; fg: string; label: string }> = {
+  usual: { bg: '#ecfdf5', fg: '#047857', label: 'within its usual range' },
+  elevated: { bg: '#fffbeb', fg: '#b45309', label: 'elevated versus its own baseline' },
+  far_above: { bg: '#fef2f2', fg: '#b91c1c', label: 'far above its own baseline' },
+  below: { bg: '#f1f5f9', fg: '#475569', label: 'below its usual level' },
+  new: { bg: '#fef2f2', fg: '#b91c1c', label: 'new heat source' },
+  unknown: { bg: '#f1f5f9', fg: '#475569', label: 'no comparison available' },
+};
+
+function BaselineRow({ p }: { p: ThermalProperties }) {
+  const b = baselineSummary(p);
+  const st = DEVIATION_STYLE[b.deviation];
+  const monthNow = p.last_seen ? new Date(p.last_seen).getUTCMonth() : -1;
+  return (
+    <Row k="Compared with its own history (365 days)">
+      <div data-testid="baseline-headline" style={{ fontWeight: 600 }}>{b.headline}</div>
+      <div style={{ fontSize: 12, color: '#475569', fontWeight: 400 }}>{b.detail}</div>
+      {b.today && (
+        <div data-testid="baseline-today" style={{ marginTop: 4, fontSize: 12, padding: '3px 8px', borderRadius: 8,
+          background: st.bg, color: st.fg, fontWeight: 600, display: 'inline-block' }}>
+          Today {b.today} - {st.label}
+        </div>
+      )}
+      {b.monthly.length === 12 && (
+        <div style={{ marginTop: 6 }} aria-label="Share of days active by month">
+          <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', height: 28 }}>
+            {b.monthly.map((v, i) => (
+              <div key={i} title={`${MONTH_LABELS[i]}: ${v == null ? 'no data' : `${Math.round(v * 100)}% of days`}`}
+                style={{ flex: 1, height: `${Math.max(((v ?? 0) * 100) * 0.28, v ? 2 : 0)}px`, minHeight: v ? 2 : 0,
+                  background: i === monthNow ? '#0369a1' : '#94a3b8', borderRadius: 2, opacity: v == null ? 0.25 : 1 }} />
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 2, fontSize: 8, color: '#94a3b8' }}>
+            {MONTH_LABELS.map(m => <span key={m} style={{ flex: 1, textAlign: 'center' }}>{m[0]}</span>)}
+          </div>
+        </div>
+      )}
+      {b.available && (
+        <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 3 }}>
+          Baseline excludes the most recent 14 days; low-confidence pixels are dropped.
+        </div>
+      )}
+    </Row>
+  );
+}
+
 export function ThermalDetails({ feature, info, gone, onClose }: Props) {
   const p = feature?.properties;
   const open = feature !== null;
@@ -155,17 +202,22 @@ export function ThermalDetails({ feature, info, gone, onClose }: Props) {
             <div style={{ fontSize: 10, color: '#94a3b8' }}>Dark bars = night passes, amber = day. Height = FRP.</div>
           </Row>
 
+          <BaselineRow p={p} />
+
           <Row k="First / last detection">
             {new Date(p.first_seen).toLocaleString()} → {new Date(p.last_seen).toLocaleString()}
           </Row>
 
-          <Row k="Nearest mapped facility (OpenStreetMap)">
+          <Row k="Nearest mapped facility">
             {p.site_name || p.site_ref ? (
               <>
                 {p.site_name ?? p.site_ref} · {(p.site_kind ?? '').replace(/_/g, ' ')} ·{' '}
                 {p.site_distance_m != null ? `${Math.round(p.site_distance_m)} m away` : NA}
                 {p.site_within ? ' (inside its matching radius)' : ' (outside its matching radius - not treated as the source)'}
-                {p.site_ref && <> · <a href={`https://www.openstreetmap.org/${p.site_ref}`} target="_blank" rel="noopener noreferrer" style={{ color: '#0369a1' }}>{p.site_ref}</a></>}
+                {/* OSM refs (way/123) link to OpenStreetMap; merged facility ids are shown on the Facilities layer instead */}
+                {p.site_ref && /^(node|way|relation)\/\d+$/.test(p.site_ref)
+                  ? <> · <a href={`https://www.openstreetmap.org/${p.site_ref}`} target="_blank" rel="noopener noreferrer" style={{ color: '#0369a1' }}>{p.site_ref}</a></>
+                  : p.site_ref && <> · merged facility database (sources on the Facilities layer)</>}
               </>
             ) : 'None within range'}
           </Row>

@@ -237,6 +237,20 @@ export interface ThermalProperties {
   lc_built?: number | null;
   lc_bare?: number | null;
   instruments: string;
+  /** 365-day history of the same facility / 1 km cell (null/absent when no baseline has been built). */
+  baseline_scope?: 'facility' | 'cell' | null;
+  baseline_key?: string | null;
+  baseline_known?: boolean;
+  baseline_active_fraction?: number | null;
+  baseline_covered_days?: number | null;
+  baseline_frp_median?: number | null;
+  baseline_frp_p95?: number | null;
+  baseline_night_share?: number | null;
+  baseline_monthly?: (number | null)[] | null;
+  baseline_window_end?: string | null;
+  frp_today?: number | null;
+  frp_today_date?: string | null;
+  frp_z?: number | null;
   detections?: ThermalDetection[];
 }
 

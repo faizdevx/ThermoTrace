@@ -4,6 +4,7 @@ Needs Edge/Chrome installed and the app served (default http://localhost:5173) w
 Waits until the thermal layer has finished loading, then saves:
   docs/images/dashboard.png             the map with the thermal layer + merged facilities
   docs/images/facility_provenance.png   a multi-source power plant: OSM outline + every source record + licence
+  docs/images/source_baseline.png       a persistent industrial source compared with its own 365-day history
 (the provenance shot needs the dev server: it drives the Leaflet map through window.__thermotraceMap)
 """
 from __future__ import annotations
@@ -58,6 +59,10 @@ def wait(cdp, expr, timeout=90, label=""):
         if cdp.js(expr):
             return
         time.sleep(1)
+    try:
+        cdp.shot(OUT / "_timeout_debug.png")     # what the page looked like (not committed)
+    except Exception:  # noqa: BLE001
+        pass
     raise TimeoutError(f"timed out waiting for {label or expr}")
 
 
@@ -95,6 +100,8 @@ def main():
                 .sort((a, b) => (b.properties.capacity_mw || 0) - (a.properties.capacity_mw || 0))[0];
             return f ? {lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], name: f.properties.name} : null; })""")
         if plant:
+            cdp.js("(() => { [...document.querySelectorAll('#thermal-controls label')].find(l => /Show thermal layer/.test(l.innerText))?.querySelector('input')?.click(); return 0; })()")   # thermal markers would win the click
+            time.sleep(1)
             cdp.js(f"(() => {{ document.getElementById('toggle-states')?.click(); "
                    f"window.__thermotraceMap.setView([{plant['lat']}, {plant['lon']}], 12, {{animate: false}}); }})()")
             time.sleep(4)
@@ -110,6 +117,33 @@ def main():
             time.sleep(2)
             cdp.shot(OUT / "facility_provenance.png")
             print("saved facility_provenance.png for", plant["name"])
+            cdp.js("(() => { [...document.querySelectorAll('#thermal-controls label')].find(l => /Show thermal layer/.test(l.innerText))?.querySelector('input')?.click(); return 0; })()")   # thermal layer back on
+            time.sleep(2)
+
+
+        # --- baseline: a persistent industrial source with a known history and a clearly non-zero z-score -----
+        src = cdp.js("""fetch('/api/thermal/sources?thermal_class=industrial_persistent&limit=5000').then(r => r.json()).then(d => {
+            const f = d.features.filter(x => x.properties.baseline_known && x.properties.frp_z != null)
+                .sort((a, b) => (b.properties.baseline_active_fraction * (b.properties.frp_total)) -
+                                (a.properties.baseline_active_fraction * (a.properties.frp_total)))[0];
+            return f ? {lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], id: f.properties.source_id,
+                        name: f.properties.site_name} : null; })""")
+        if src:
+            cdp.js("(() => { document.querySelector('.leaflet-popup-close-button')?.click(); return 0; })()")
+            cdp.js(f"(() => {{ window.__thermotraceMap.setView([{src['lat']}, {src['lon']}], 11, {{animate: false}}); return 0; }})()")
+            time.sleep(4)
+            pt = cdp.js(f"""(() => {{ const m = window.__thermotraceMap; const p = m.latLngToContainerPoint([{src['lat']}, {src['lon']}]);
+                const r = m.getContainer().getBoundingClientRect(); return {{x: r.left + p.x, y: r.top + p.y}}; }})()""")
+            cdp.call("Input.dispatchMouseEvent", type="mouseMoved", x=pt["x"] - 6, y=pt["y"] - 6)
+            cdp.call("Input.dispatchMouseEvent", type="mouseMoved", x=pt["x"], y=pt["y"])
+            time.sleep(0.5)
+            for kind in ("mousePressed", "mouseReleased"):
+                cdp.call("Input.dispatchMouseEvent", type=kind, x=pt["x"], y=pt["y"], button="left", clickCount=1)
+            wait(cdp, "!!document.querySelector('[data-testid=baseline-headline]')", 40, "baseline row")
+            cdp.js("(() => { document.querySelector('[data-testid=baseline-headline]').scrollIntoView({block: 'center'}); return 0; })()")
+            time.sleep(2)
+            cdp.shot(OUT / "source_baseline.png")
+            print("saved source_baseline.png for", src["name"] or src["id"])
 
     finally:
         proc.kill()

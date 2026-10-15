@@ -22,6 +22,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from . import baseline as baseline_mod
 from . import firms, pipeline, store
 from .sites import SiteIndex
 
@@ -50,6 +51,23 @@ def load_sites() -> SiteIndex | None:
     return None
 
 
+def load_baseline(sites: SiteIndex | None) -> baseline_mod.BaselineIndex | None:
+    """365-day history per facility / cell: the PostGIS view when it is populated, else the file written by
+    ``python -m src.thermal.baseline compute`` (THERMAL_BASELINE_DIR), else None (sources show no baseline)."""
+    dsn = os.getenv("DATABASE_URL")
+    if dsn:
+        try:
+            index = baseline_mod.BaselineIndex.from_postgis(dsn.replace("postgresql+psycopg2://", "postgresql://"))
+            if len(index):
+                return index
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("baseline view unavailable (%s); trying the baseline file", exc)
+    index = baseline_mod.BaselineIndex.load(env_path("THERMAL_BASELINE_DIR", "data/baseline"))
+    if index is None:
+        logger.warning("no thermal baseline available: run `python -m src.thermal.baseline load|compute`")
+    return index
+
+
 def refresh_once(out_dir: Path, window_days: int, use_landcover: bool = True, interval_seconds: int = 1800,
                  force: bool = False) -> dict:
     """One cycle. Publishes (snapshot + PostGIS + notifications) ONLY when FIRMS delivered new detections,
@@ -72,14 +90,16 @@ def refresh_once(out_dir: Path, window_days: int, use_landcover: bool = True, in
         merged = store.merge_history(history, fresh, keep_days=window_days)
         store.save_history(out_dir, merged)
         span_days = max(int((merged.acq_datetime.max() - merged.acq_datetime.min()).days) + 1, 1)
-        result = pipeline.analyse(merged, load_sites(), window_days=min(span_days, window_days),
-                                  use_landcover=use_landcover, cache_dir=out_dir)
+        sites = load_sites()
+        result = pipeline.analyse(merged, sites, window_days=min(span_days, window_days),
+                                  use_landcover=use_landcover, cache_dir=out_dir, baseline=load_baseline(sites))
         store.write_snapshot(out_dir, result)
         run_id = None
         dsn = os.getenv("DATABASE_URL")
         if dsn and os.getenv("THERMAL_PERSIST_DB", "true").lower() in ("1", "true", "yes"):
             try:
                 run_id = store.persist_postgis(dsn.replace("postgresql+psycopg2://", "postgresql://"), result)
+                _maybe_refresh_baseline(dsn.replace("postgresql+psycopg2://", "postgresql://"), out_dir)
             except Exception as exc:  # noqa: BLE001 - snapshot is still valid; report, do not hide
                 logger.error("PostGIS persist failed: %s", exc)
                 store.write_status(out_dir, db_error=str(exc)[:300])
@@ -102,6 +122,24 @@ def refresh_once(out_dir: Path, window_days: int, use_landcover: bool = True, in
         store.write_status(out_dir, state="error", last_error=str(exc)[:500], consecutive_failures=failures)
         logger.exception("thermal refresh failed (%d in a row)", failures)
         raise
+
+
+def _maybe_refresh_baseline(dsn: str, out_dir: Path, every_hours: float = 24.0) -> None:
+    """Newly stored detections get their facility/cell assigned; the baseline view is rebuilt at most once a day
+    (it excludes the last 14 days, so it does not need to follow every 10-minute cycle)."""
+    try:
+        status = store.read_status(out_dir)
+        last = status.get("baseline_refreshed_at")
+        due = last is None or (datetime.now(timezone.utc) - pd.Timestamp(last).to_pydatetime()).total_seconds() > every_hours * 3600
+        if due:
+            info = baseline_mod.refresh_postgis(dsn)
+            store.write_status(out_dir, baseline_refreshed_at=datetime.now(timezone.utc), baseline_geo_assigned=info["geo_assigned"])
+            logger.info("baseline view refreshed (%d new detections assigned)", info["geo_assigned"])
+        else:
+            with __import__("psycopg2").connect(dsn) as conn, conn.cursor() as cur:
+                cur.execute("SELECT assign_thermal_geo()")
+    except Exception as exc:  # noqa: BLE001 - the baseline is context, never a reason to lose a cycle
+        logger.warning("baseline refresh skipped: %s", exc)
 
 
 def main(argv: list[str] | None = None) -> int:

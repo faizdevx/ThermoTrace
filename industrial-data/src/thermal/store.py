@@ -127,20 +127,29 @@ def persist_postgis(dsn: str, a: Analysis) -> int:
                 rows.append((
                     r["source_id"], f"SRID=4326;POINT({r['lon']} {r['lat']})", r["thermal_class"], r["thermal_label"],
                     r["class_confidence"], r["class_margin"], json.dumps(r["class_scores"]),
-                    json.dumps(r["reasons"]), r["alert_level"], r["alert_text"], r.get("state"),
-                    r.get("site_ref"), r.get("site_name"), r.get("site_kind"), _f(r.get("site_distance_m")),
+                    # _s: pandas NaN would otherwise be stored as the text 'NaN' (and read back as an alert)
+                    json.dumps(r["reasons"]), _s(r["alert_level"]), _s(r["alert_text"]), _s(r.get("state")),
+                    _s(r.get("site_ref")), _s(r.get("site_name")), _s(r.get("site_kind")), _f(r.get("site_distance_m")),
                     bool(r.get("site_within")), r["n_detections"], r["n_days"], r["window_days"],
                     r["first_seen"].to_pydatetime(), r["last_seen"].to_pydatetime(), r["frp_mean"], r["frp_max"],
                     r["frp_total"], r["night_fraction"], r["extent_m"], _s(r.get("lc_dominant")),
                     _f(r.get("lc_crop")), _f(r.get("lc_vegetation")), _f(r.get("lc_built")), _f(r.get("lc_bare")),
-                    r["instruments"], run_id))
+                    r["instruments"], run_id,
+                    _s(r.get("baseline_scope")), _s(r.get("baseline_key")), _f(r.get("baseline_active_fraction")),
+                    _i(r.get("baseline_covered_days")), _f(r.get("baseline_frp_median")),
+                    _f(r.get("baseline_frp_p95")), _f(r.get("baseline_night_share")),
+                    json.dumps(r["baseline_monthly"]) if isinstance(r.get("baseline_monthly"), list) else None,
+                    r.get("baseline_window_end"), _f(r.get("frp_today")), r.get("frp_today_date"), _f(r.get("frp_z"))))
             psycopg2.extras.execute_values(
                 cur,
                 """INSERT INTO thermal_sources (source_id, geometry, thermal_class, thermal_label, class_confidence,
                        class_margin, class_scores, reasons, alert_level, alert_text, state, site_ref, site_name,
                        site_kind, site_distance_m, site_within, n_detections, n_days, window_days, first_seen,
                        last_seen, frp_mean, frp_max, frp_total, night_fraction, extent_m, lc_dominant, lc_crop,
-                       lc_vegetation, lc_built, lc_bare, instruments, run_id) VALUES %s
+                       lc_vegetation, lc_built, lc_bare, instruments, run_id, baseline_scope, baseline_key,
+                       baseline_active_fraction, baseline_covered_days, baseline_frp_median, baseline_frp_p95,
+                       baseline_night_share, baseline_monthly, baseline_window_end, frp_today, frp_today_date,
+                       frp_z) VALUES %s
                    ON CONFLICT (source_id) DO UPDATE SET geometry = EXCLUDED.geometry,
                        thermal_class = EXCLUDED.thermal_class, thermal_label = EXCLUDED.thermal_label,
                        class_confidence = EXCLUDED.class_confidence, class_margin = EXCLUDED.class_margin,
@@ -155,9 +164,17 @@ def persist_postgis(dsn: str, a: Analysis) -> int:
                        extent_m = EXCLUDED.extent_m, lc_dominant = EXCLUDED.lc_dominant, lc_crop = EXCLUDED.lc_crop,
                        lc_vegetation = EXCLUDED.lc_vegetation, lc_built = EXCLUDED.lc_built, lc_bare = EXCLUDED.lc_bare,
                        instruments = EXCLUDED.instruments, run_id = EXCLUDED.run_id, is_current = TRUE,
-                       updated_at = NOW()""",
+                       baseline_scope = EXCLUDED.baseline_scope, baseline_key = EXCLUDED.baseline_key,
+                       baseline_active_fraction = EXCLUDED.baseline_active_fraction,
+                       baseline_covered_days = EXCLUDED.baseline_covered_days,
+                       baseline_frp_median = EXCLUDED.baseline_frp_median, baseline_frp_p95 = EXCLUDED.baseline_frp_p95,
+                       baseline_night_share = EXCLUDED.baseline_night_share,
+                       baseline_monthly = EXCLUDED.baseline_monthly, baseline_window_end = EXCLUDED.baseline_window_end,
+                       frp_today = EXCLUDED.frp_today, frp_today_date = EXCLUDED.frp_today_date,
+                       frp_z = EXCLUDED.frp_z, updated_at = NOW()""",
                 rows, template="(%s,ST_GeomFromEWKT(%s),%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
-                               "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", page_size=1000)
+                               "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
+                               "%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s)", page_size=1000)
             cur.execute(
                 """UPDATE thermal_runs SET status='success', finished_at=NOW(), detections=%s, sources=%s,
                        latest_detection=%s, summary=%s::jsonb WHERE id=%s""",
@@ -172,6 +189,10 @@ def persist_postgis(dsn: str, a: Analysis) -> int:
         return run_id
     finally:
         conn.close()
+
+
+def _i(v):
+    return None if v is None or (isinstance(v, float) and np.isnan(v)) else int(v)
 
 
 def _f(v):

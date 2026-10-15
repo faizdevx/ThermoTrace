@@ -33,6 +33,11 @@ def client(tmp_path, monkeypatch):
         feat("c", "agricultural_burning", 75.0, 30.0, frp=3, state="Punjab", last="2026-10-05T10:00:00+00:00"),
         feat("d", "vegetation_fire", 93.0, 27.0, frp=20, state="Arunachal Pradesh"),
     ]
+    feats[0]["properties"].update({
+        "baseline_scope": "facility", "baseline_known": True, "baseline_active_fraction": 0.71,
+        "baseline_covered_days": 365, "baseline_frp_median": 3.2, "baseline_frp_p95": 9.8,
+        "baseline_night_share": 0.9, "baseline_monthly": [0.5] * 12, "frp_today": 30.0, "frp_z": 3.1,
+        "frp_today_date": "2026-10-08", "baseline_window_end": "2026-09-24"})
     meta = {"summary": {"sources": 4, "alerts": 1, "latest_detection": "2026-10-08T20:00:00+00:00"}, "attribution": ["x"]}
     (tmp_path / "thermal_sources.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": feats, "metadata": meta}))
     (tmp_path / "thermal_detections.csv").write_text(
@@ -134,3 +139,9 @@ def test_imagery_scene_choice_is_clearest_within_window(monkeypatch):
     monkeypatch.setattr(imagery, "search", lambda lon, lat, centre: [])
     out = imagery.chip_for("t-none", 85.0, 21.0, "2026-10-08T20:00:00+00:00")
     assert out["available"] is False and "No Sentinel-2 scene" in out["reason"] and out["search"]["max_cloud_percent"] == 30.0
+
+
+def test_baseline_fields_reach_the_client(client):
+    p = client.get("/api/thermal/sources/a").json()["properties"]
+    assert p["baseline_scope"] == "facility" and p["baseline_active_fraction"] == 0.71
+    assert p["baseline_frp_p95"] == 9.8 and len(p["baseline_monthly"]) == 12 and p["frp_z"] == 3.1

@@ -137,10 +137,12 @@ def download_range(out_dir: Path, start: date, end: date, family: str = "SNPP", 
     done = 0
     day = start
     while day <= end:
-        span = min(MAX_DAYS, (end - day).days + 1)
+        product = pick_product(avail, family, day)
+        # never let a request run past the product's last day: the API would silently return fewer
+        # days and the gap would look like "no fires" (SP ends 2026-06-30, NRT starts 2026-07-01)
+        span = min(MAX_DAYS, (end - day).days + 1, (avail[product][1] - day).days + 1)
         target = out_dir / f"{family}_{day:%Y%m%d}_{span}d.parquet"
         if not target.exists():
-            product = pick_product(avail, family, day)
             df = fetch_area(key, product, bbox, day, span, session)
             df.to_parquet(target, index=False)
             logger.info("%s %s +%dd -> %d rows", product, day, span, len(df))

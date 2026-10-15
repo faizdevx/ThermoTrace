@@ -96,6 +96,7 @@ services:
       <<: *db-env
       THERMAL_DATA_DIR: /data/thermal/live
       THERMAL_FACILITIES_GEOJSON: /data/thermal/facilities/facilities.geojson
+      THERMAL_SITES_FROM_DB: "1"            # match against the PostGIS facilities table when it is built
       THERMAL_SITES_GEOJSON: /data/thermal/sites_india.geojson
       THERMAL_INTERVAL_SECONDS: ${THERMAL_INTERVAL_SECONDS:-600}
       THERMAL_WINDOW_DAYS: ${THERMAL_WINDOW_DAYS:-14}
@@ -128,6 +129,22 @@ services:
     volumes:
       - thermaldata:/data/thermal
       - ./data/facilities/raw:/data/facilities/raw:ro
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+
+  # One-off (re-run to refresh): load the FIRMS archive (data/archive/{snpp,noaa20}, see README "Baseline")
+  # into thermal_detections and rebuild the 365-day baseline view. Download first with
+  # `python -m src.thermal.baseline download` (needs FIRMS_MAP_KEY).
+  baseline:
+    profiles: ["bootstrap"]
+    image: thermotrace-worker:local
+    build: { context: ., dockerfile: docker/worker.Dockerfile }
+    entrypoint: ["python", "-m", "src.thermal.baseline", "load", "--archive", "/data/archive/snpp",
+                 "--archive", "/data/archive/noaa20"]
+    environment: *db-env
+    volumes:
+      - ./data/archive:/data/archive:ro
     depends_on:
       db: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }

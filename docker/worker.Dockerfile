@@ -11,7 +11,7 @@ WORKDIR /app
 COPY industrial-data/ /app/
 COPY docker/osm/thermotrace.lua /opt/thermotrace/thermotrace.lua
 ENV PATH=/opt/venv/bin:$PATH PYTHONPATH=/app
-RUN useradd --create-home --uid 10001 thermo && mkdir -p /data/osm && chown -R thermo /data /app
+RUN useradd --create-home --uid 10001 thermo && mkdir -p /data/osm /data/thermal/live /data/thermal/facilities && chown -R thermo /data /app
 USER thermo
 ENTRYPOINT ["python", "-m", "src.sync.cli"]
 CMD ["run"]

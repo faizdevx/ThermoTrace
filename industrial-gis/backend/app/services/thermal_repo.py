@@ -230,13 +230,17 @@ class PostgisBackend:
     _COLS = ("source_id, thermal_class, thermal_label, class_confidence, class_margin, class_scores, reasons, "
              "alert_level, alert_text, state, site_ref, site_name, site_kind, site_distance_m, site_within, "
              "n_detections, n_days, window_days, first_seen, last_seen, frp_mean, frp_max, frp_total, "
-             "night_fraction, extent_m, lc_dominant, lc_crop, lc_vegetation, lc_built, lc_bare, instruments")
+             "night_fraction, extent_m, lc_dominant, lc_crop, lc_vegetation, lc_built, lc_bare, instruments, "
+             "baseline_scope, baseline_key, baseline_active_fraction, baseline_covered_days, baseline_frp_median, "
+             "baseline_frp_p95, baseline_night_share, baseline_monthly, baseline_window_end, frp_today, "
+             "frp_today_date, frp_z")
 
     def _feature(self, row) -> dict:
         d = dict(row)
         lon, lat = d.pop("lon"), d.pop("lat")
-        for k in ("first_seen", "last_seen"):
+        for k in ("first_seen", "last_seen", "baseline_window_end", "frp_today_date"):
             d[k] = d[k].isoformat() if d.get(k) else None
+        d["baseline_known"] = d.get("baseline_frp_median") is not None
         return {"type": "Feature", "geometry": {"type": "Point", "coordinates": [lon, lat]}, "properties": d}
 
     def list_sources(self, f: ThermalFilters, limit: int, offset: int):

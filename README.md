@@ -47,7 +47,7 @@ ThermoTrace is a Web GIS that does two things on one map:
 
 ![ThermoTrace dashboard: classified FIRMS thermal sources over the merged facility layer](docs/images/dashboard.png)
 
-_Dashboard captured 2026-10-15 from the local PostGIS stack: 3,464 classified FIRMS thermal sources from 13,234 VIIRS detections (the status chip honestly reads "delayed": the newest detection in that database was 4 days old), over the 12,567-facility layer (small dots; blue = confirmed by two or more sources). Filled circles are thermal sources (size = radiative power, colour = class, dark ring = alert). The left panel filters by class, window, minimum power and alerts and exports CSV/GeoJSON; the top-right box toggles the facility layer (with the source attributions), the OSM north-east pilot layer and the boundaries._
+_Dashboard captured 2026-10-15 from the Docker stack (PostGIS, API, thermal worker, frontend): 2,757 classified FIRMS thermal sources from 7,807 VIIRS detections, status "live" (newest detection about 3 h old), over the 12,567-facility layer (small dots; blue = confirmed by two or more sources). Filled circles are thermal sources (size = radiative power, colour = class, dark ring = alert). The left panel filters by class, window, minimum power and alerts and exports CSV/GeoJSON; the top-right box toggles the facility layer (with the source attributions), the OSM north-east pilot layer and the boundaries. The site cards read 0 because the optional OSM north-east pilot import was not run on this fresh database; the header says so instead of covering the map._
 
 ![Facility provenance: Tirora TPP with its OSM outline and the seven merged source records](docs/images/facility_provenance.png)
 
@@ -88,7 +88,50 @@ Regenerate: `python industrial-data/scripts/train_classifier.py && python indust
 |---|---|---|
 | 0 | Clean foundation: legacy tests green, thermal layer is the default map, honest README badges | **done** |
 | 1 | Facility database with provenance: OSM + WRI GPPD + GEM + VIIRS Nightfire, PostGIS, API, map layer | **done for OSM + WRI**; GEM and VNF loaders are tested but their files are not loaded yet (registration/account required) |
-| 2-9 | 12-month FIRMS baseline per facility, labelled evaluation set, model in the live pipeline, imagery as features, alerting, replay demo, judge-facing dashboard | planned - see [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) |
+| 2 | 12-month FIRMS baseline per facility and per 1 km cell (S-NPP + NOAA-20), z-score of today against it, shown for every source | **done** (see [Baseline](#baseline-what-is-normal-for-this-place)) |
+| 3-9 | labelled evaluation set, model in the live pipeline, imagery as features, alerting, replay demo, judge-facing dashboard | planned - see [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) |
+
+## Baseline: what is normal for this place
+
+A persistent flare, kiln or coal-seam fire is normal for its place; a new fire is not. Seven days of FIRMS cannot
+tell them apart, so every thermal source is compared with **365 days of the same place** (VIIRS S-NPP + NOAA-20
+from the FIRMS archive: standard-processing data through 2026-06-30, near-real-time after that).
+
+![A persistent industrial source with its 365-day history: normally active X% of days, typical power, monthly profile and today's z-score](docs/images/source_baseline.png)
+
+_Source detail panel (captured 2026-10-15 from the Docker stack): Bhubhaneshwari coal mine (Odisha) is normally active on 78% of days at this facility over 365 covered days, typical detection 2.5 MW (95th percentile 6.9 MW), 82% of detections at night; its latest day summed 76.9 MW, z = +1.1 against its own daily history, so "within its usual range" - a routine coal-mine fire, not a new event. The bars are the share of active days per month (current month highlighted)._
+
+| Definition | Value |
+|---|---|
+| Window | 365 days ending 14 days before the newest detection (2025-10-01 .. 2026-09-30 for the 2026-10-14 run), so the live window is not part of its own baseline |
+| Entities | **facility** (a detection belongs to the facility whose radius + 500 m contains it with the largest margin) and **1 km cell** (EPSG:6933 equal-area grid) |
+| Covered day | a window day on which the archive holds any detection - archive gaps are not counted as quiet days |
+| Detections used | low-confidence pixels dropped; one physical detection held as both SP and NRT counted once (SP wins) |
+| Per entity | active-day fraction, 12-month active profile, median and 95th-percentile FRP, night share, mean/std of daily FRP (inactive days = 0) |
+| z-score | `(FRP today - daily mean) / max(daily std, 1 MW)`; "today" = the entity's latest day in the live window, summed over every detection of that entity |
+| "Never seen" | an entity with no detection in the window is reported as new heat (0% of days), not as a routine source |
+
+Where it lives: `sql/migrations/006_thermal_baseline.sql` (materialised view `thermal_baseline`, `thermal_detection_geo`,
+`assign_thermal_geo()`, `product`/`satellite`/`acq_date` columns on `thermal_detections`), `src/thermal/baseline.py`
+(the same numbers computed with pandas for the no-database mode; `tests/sync/test_baseline_postgis.py` checks that the
+SQL view and the pandas code agree entity by entity).
+
+```bash
+python -m src.thermal.baseline download --start 2025-10-01 --family SNPP --family NOAA20 --out ../data/archive   # needs FIRMS_MAP_KEY
+python -m src.thermal.baseline report  --archive ../data/archive/snpp --archive ../data/archive/noaa20   # gaps, products
+python -m src.thermal.baseline load    --archive ../data/archive/snpp --archive ../data/archive/noaa20   # -> PostGIS + view
+python -m src.thermal.baseline compute --archive ../data/archive/snpp --archive ../data/archive/noaa20   # file mode (parquet)
+```
+
+Loading the archive into PostGIS (`baseline load`, local Docker stack, 2026-10-15): 1,874,454 detections inserted, each assigned to its facility and 1 km cell, and the view built in 710 s: 651,831 baseline rows, 4,993 of them facilities (the pandas build gives 651,824; the few-entity difference is the facility search: PostGIS checks every facility within 6.5 km, the pandas twin the 8 nearest).
+
+Live Docker worker, 2026-10-15: every one of the 2,757 current sources carries the baseline fields from the PostGIS view; 1,231 have history at their place, and the 102 persistent industrial sources are normally active on a median 58 % of days.
+
+Result on the 2026-10-14 run (5,418 current sources, 365 covered days, 651,824 baseline entities from 1.88 million archive detections):
+
+* 2,046 sources have history at their place, 3,372 do not (new heat for that cell: 2,725 of them are crop burning, 521 vegetation fire).
+* Persistent industrial sources are the routine ones: 187 of 188 have history, normally active on a median **42 % of days** (not ~100 %: cloud and monsoon hide a true 24/7 source from a 375 m sensor on many days). Crop-burning sources with a history are active on a median 0.3 % of days.
+* z-score: 1,310 sources are within their usual range or below (< 2), 2,209 are elevated (2 to 4), 1,866 are far above (>= 4) - almost all of the latter are fires in places with no history, where the 1 MW std floor makes any detection a large z.
 
 ## What is implemented (and verified)
 
@@ -100,6 +143,7 @@ Regenerate: `python industrial-data/scripts/train_classifier.py && python indust
 | Snapshot **and** PostGIS storage (`thermal_sources`, `thermal_detections`, `thermal_runs`) | PostGIS path run against a real PostGIS container |
 | OSM industrial sites: baseline import + incremental replication (osm2pgsql) with durable checkpoint, locking, backoff, revisions | 23 lifecycle tests; baseline imported (below); catching up to the live diff feed **not observed to completion** |
 | Merged facility database (OSM 19,497 records + WRI GPPD 397 plants -> 12,567 facilities, 247 confirmed by both, 580 with OSM footprints) with per-record source id, licence and attribution; `facilities` / `facility_sources` tables, `/api/facilities` (PostGIS or files), map layer with provenance popup | 18 unit tests, 5 API tests (files), 4 API tests against PostGIS, 3 popup tests; PostGIS load run against a real PostGIS container |
+| 365-day baseline per facility / 1 km cell (archive download with product-boundary handling, bulk PostGIS load, materialised view, pandas twin, z-score per source, detail-panel row) | 9 unit tests, 4 SQL-vs-pandas parity tests against PostGIS, 4 UI tests; run on 1.88 M real detections |
 | REST API, SSE change notifications with polling fallback, live-status panel | tests below |
 | Government sources (India Industrial Land Bank, ICLP, NCoG) | **not integrated** - see [Data sources](#data-sources) |
 
@@ -227,6 +271,7 @@ docker compose up -d --build db migrate api worker thermal frontend
 docker compose --profile bootstrap run --rm bootstrap          # one-time OSM baseline (OSM_REGION in .env)
 docker compose --profile bootstrap run --rm thermal-bootstrap  # one-time India-wide facility cache for thermal matching
 docker compose --profile bootstrap run --rm facilities         # merge OSM + WRI/GEM/VNF files from data/facilities/raw
+docker compose --profile bootstrap run --rm baseline           # FIRMS archive in data/archive -> 365-day baseline view
 # UI: http://localhost:8080   API docs: http://localhost:8000/api/docs
 ```
 
@@ -269,7 +314,7 @@ TEST_DATABASE_URL=postgresql://user:pw@localhost:5432/postgres python -m pytest 
 cd industrial-gis/frontend && npx tsc --noEmit && npm test && npm run build
 ```
 
-Results on the development machine (2026-10-15): `industrial-data/tests` 251 passed, 23 skipped (the skips need PostGIS); API synthetic suite 61 passed; API against PostGIS 34 passed (includes the facility tests); frontend `tsc` clean, vitest 30 passed. The CI workflow runs the synthetic, thermal/sync and PostGIS jobs; its result on GitHub is not recorded here.
+Results on the development machine (2026-10-15): `industrial-data/tests` 261 passed, 27 skipped (the skips need PostGIS); with PostGIS `tests/sync` 27 passed (sync lifecycle + baseline SQL-vs-pandas parity); API synthetic suite 62 passed; API against PostGIS 34 passed; frontend `tsc` clean, vitest 34 passed. The CI workflow runs the synthetic, thermal/sync and PostGIS jobs; its result on GitHub is not recorded here.
 
 ## Configuration
 

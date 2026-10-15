@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import shapely
 
+from . import baseline as baseline_mod
 from . import classifier, landcover, sources
 from .sites import SiteIndex
 
@@ -74,6 +75,7 @@ def analyse(
     cache_dir: Path = Path("data/thermal"),
     clip: bool = True,
     with_states: bool = True,
+    baseline: baseline_mod.BaselineIndex | None = None,
 ) -> Analysis:
     if det.empty:
         return Analysis(det, pd.DataFrame(), {"detections": 0, "sources": 0})
@@ -111,6 +113,8 @@ def analyse(
             logger.warning("state assignment skipped: %s", exc)
             src["state"] = None
     src["source_id"] = stable_ids(src)
+    # compare every source with 365 days of its own facility / 1 km cell history (None -> fields stay empty)
+    src = baseline_mod.attach(src, det, baseline, site_index)
 
     det = det.merge(src[["cluster", "source_id", "thermal_class"]], on="cluster", how="left")
     summary = {
@@ -121,6 +125,8 @@ def analyse(
         "alerts": int(src.alert_level.notna().sum()),
         "facilities_indexed": 0 if site_index is None else len(site_index),
         "landcover_used": use_landcover,
+        "baseline_entities": 0 if baseline is None else len(baseline),
+        "baseline_window_end": None if baseline is None else str(baseline.window_end),
         "latest_detection": str(det.acq_datetime.max()),
         "earliest_detection": str(det.acq_datetime.min()),
     }

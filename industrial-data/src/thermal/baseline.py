@@ -249,7 +249,10 @@ def attach(src: pd.DataFrame, det: pd.DataFrame, index: BaselineIndex | None, si
         return float(s.loc[day]), day
 
     rows = []
-    src_cells = cell_keys(out.lat, out.lon)
+    # a cluster can span cells and its centroid can land in one with no detection: use the cell that holds
+    # most of the cluster's own detections (centroid cell only when the cluster has none in ``det``)
+    modal = d.groupby("cluster").cell_key.agg(lambda s: s.value_counts().index[0]).to_dict() if "cluster" in d else {}
+    src_cells = [modal.get(c, fallback) for c, fallback in zip(out["cluster"], cell_keys(out.lat, out.lon))]         if "cluster" in out.columns else cell_keys(out.lat, out.lon)
     for r, cell in zip(out.itertuples(), src_cells):
         in_fac = bool(getattr(r, "site_within", False)) and getattr(r, "site_ref", None)
         scope, key = ("facility", r.site_ref) if in_fac else ("cell", cell)

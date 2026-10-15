@@ -149,3 +149,15 @@ def test_index_roundtrips_through_parquet(tmp_path):
 def test_store_text_helper_never_writes_nan():
     from src.thermal.store import _s
     assert _s(float("nan")) is None and _s(None) is None and _s("watch") == "watch"
+
+
+def test_source_whose_centroid_cell_has_no_detection_still_gets_a_z_score():
+    """Cluster centroid lands in an empty cell: the z-score must use the cell holding the cluster's detections."""
+    index = bl.BaselineIndex.from_detections(_history(), _sites())
+    live = pd.DataFrame([
+        {**_det(23.5, 85.5, ANCHOR, 12.0), "cluster": 7},
+        {**_det(23.5, 85.5 + 0.002, ANCHOR, 8.0, "VIIRS_NOAA20_NRT", hour=2), "cluster": 7},
+    ])
+    far = _sources(23.5, 85.5 + 0.03, cluster=7)           # centroid ~3 km away, a different 1 km cell
+    out = bl.attach(far, live, index, _sites()).iloc[0]
+    assert out.frp_today == pytest.approx(20.0) and out.frp_z == pytest.approx(20.0)

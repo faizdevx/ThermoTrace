@@ -87,7 +87,7 @@ Regenerate: `python industrial-data/scripts/train_classifier.py && python indust
 | Phase | Scope | State |
 |---|---|---|
 | 0 | Clean foundation: legacy tests green, thermal layer is the default map, honest README badges | **done** |
-| 1 | Facility database with provenance: OSM + WRI GPPD + GEM + VIIRS Nightfire, PostGIS, API, map layer | **done for OSM + WRI**; GEM and VNF loaders are tested but their files are not loaded yet (registration/account required) |
+| 1 | Facility database with provenance: OSM + WRI GPPD + GEM + VIIRS Nightfire, PostGIS, API, map layer | **OSM + WRI done; GEM and VNF not loaded** (loaders tested on fixtures; registration/account required) |
 | 2 | 12-month FIRMS baseline per facility and per 1 km cell (S-NPP + NOAA-20), z-score of today against it, shown for every source | **done** (see [Baseline](#baseline-what-is-normal-for-this-place)) |
 | 3-9 | labelled evaluation set, model in the live pipeline, imagery as features, alerting, replay demo, judge-facing dashboard | planned - see [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) |
 
@@ -132,6 +132,30 @@ Result on the 2026-10-14 run (5,418 current sources, 365 covered days, 651,824 b
 * 2,046 sources have history at their place, 3,372 do not (new heat for that cell: 2,725 of them are crop burning, 521 vegetation fire).
 * Persistent industrial sources are the routine ones: 187 of 188 have history, normally active on a median **42 % of days** (not ~100 %: cloud and monsoon hide a true 24/7 source from a 375 m sensor on many days). Crop-burning sources with a history are active on a median 0.3 % of days.
 * z-score: 1,310 sources are within their usual range or below (< 2), 2,209 are elevated (2 to 4), 1,866 are far above (>= 4) - almost all of the latter are fires in places with no history, where the 1 MW std floor makes any detection a large z.
+
+### Verification of phases 0-2 (2026-10-15, Docker stack on this machine)
+
+![The Docker stack served by the production nginx image on :8080: thermal sources over the facility layer, status "live"](docs/images/docker_stack.png)
+
+| Phase | Item | Result | Evidence |
+|---|---|---|---|
+| 0 | Frontend Docker build | **pass** | `docker compose build frontend` built; the nginx image serves the UI and proxies `/api` on :8080 (screenshot above). nginx now re-resolves the API container, so recreating it no longer leaves a 502 |
+| 0 | CI green | **pass** | the GitHub Actions runs for the last six pushes to `main` finished with `success` (API, PostGIS and frontend jobs) |
+| 0 | PostGIS API suite | **pass** | 34 passed, 0 failed (`backend/tests/postgis`, throw-away database) |
+| 0 | Legacy pipeline tests | **pass** | `industrial-data/tests`: 288 passed, 0 skipped with PostGIS available (261 passed + 27 skipped without a database) |
+| 0 | Facilities in PostGIS, matching reads them | **pass** | table `facilities`; the Docker worker (`THERMAL_SITES_FROM_DB=1`) loads 12,567 rows from it. The GeoJSON file remains a fallback for the no-database mode only |
+| 0 | OSM pilot layer behind a toggle | **pass** | off by default, map shows thermal sources + facilities |
+| 0 | Badges match the code | **pass** | Redis, Celery, MapLibre, Plotly, SciPy removed |
+| 1 | OSM + WRI in PostGIS with provenance | **pass** | 19,497 OSM + 397 WRI records -> 12,567 facilities in `facilities`, every record in `facility_sources` with source id, licence, attribution; 247 plants confirmed by both; 580 OSM outlines |
+| 1 | Global Energy Monitor trackers | **not done** | loader and tests exist (fixtures), but GEM data sits behind a registration form (name, organisation, terms) and has not been downloaded |
+| 1 | VIIRS Nightfire flare sites | **not done** | loader and tests exist (fixtures); needs a free EOG account |
+| 1 | Facilities layer with source attribution | **pass** | `/api/facilities` (PostGIS) + map layer, attribution list and per-record licences in the popup |
+| 2 | 12 months of S-NPP + NOAA-20, `product` column | **pass** | 1,874,454 detections (SP 1,815,205, NRT 62,066) in `thermal_detections`; 365 covered days |
+| 2 | `thermal_baseline` view | **pass** | 651,898 rows (facility and 1 km cell) with active-day fraction, 12-month profile, median/p95 FRP, night share |
+| 2 | Every current source: "normally active X% of days, typical FRP Y MW" + z-score | **pass** | of 2,889 current sources, 2,889 have the active-day fraction and a z-score; 1,274 have history at their place (typical FRP shown), the other 1,615 are "never seen here" |
+
+Phase 1 is therefore complete for the two open sources (OSM, WRI) and **incomplete for GEM and VNF**: two of the four
+sources the plan lists are not loaded, because both require a registration only the account owner can do.
 
 ## What is implemented (and verified)
 
@@ -314,7 +338,7 @@ TEST_DATABASE_URL=postgresql://user:pw@localhost:5432/postgres python -m pytest 
 cd industrial-gis/frontend && npx tsc --noEmit && npm test && npm run build
 ```
 
-Results on the development machine (2026-10-15): `industrial-data/tests` 261 passed, 27 skipped (the skips need PostGIS); with PostGIS `tests/sync` 27 passed (sync lifecycle + baseline SQL-vs-pandas parity); API synthetic suite 62 passed; API against PostGIS 34 passed; frontend `tsc` clean, vitest 34 passed. The CI workflow runs the synthetic, thermal/sync and PostGIS jobs; its result on GitHub is not recorded here.
+Results on the development machine (2026-10-15): `industrial-data/tests` 288 passed with PostGIS available (261 passed + 27 skipped without a database); API synthetic suite 62 passed; API against PostGIS 34 passed; frontend `tsc` clean, vitest 34 passed. GitHub Actions: the last six pushes to `main` completed with `success`.
 
 ## Configuration
 

@@ -11,8 +11,8 @@ import os
 from pathlib import Path
 
 from .merge import merge
-from .sources import GEM_TRACKERS, discover_raw, load_gem, load_osm, load_vnf, load_wri_gppd
-from .store import persist_postgis, write_outputs
+from .sources import GEM_TRACKERS, discover_raw, load_gem, load_ggfr, load_osm, load_vnf, load_wri_gppd
+from .store import persist_postgis, refresh_thermal_baseline, write_outputs
 
 
 def build(args: argparse.Namespace) -> dict:
@@ -27,6 +27,7 @@ def build(args: argparse.Namespace) -> dict:
         args.wri = args.wri or (str(found["wri"]) if found["wri"] else None)
         args.gem = (args.gem or []) + [f"{p}:{t}" for p, t in found["gem"]]
         args.vnf = args.vnf or (str(found["vnf"][0]) if found["vnf"] else None)
+        args.ggfr = args.ggfr or (str(found["ggfr"]) if found["ggfr"] else None)
         if found["unrecognised"]:
             print("ignored (unrecognised file names):", [str(p) for p in found["unrecognised"]])
     if args.osm:
@@ -40,6 +41,8 @@ def build(args: argparse.Namespace) -> dict:
         add(f"gem:{tracker}", load_gem(path, tracker))
     if args.vnf:
         add("vnf", load_vnf(args.vnf, min_days=args.vnf_min_days))
+    if args.ggfr:
+        add("ggfr", load_ggfr(args.ggfr))
     if not frames:
         raise SystemExit("no source given (use --osm / --wri / --gem / --vnf)")
 
@@ -47,7 +50,7 @@ def build(args: argparse.Namespace) -> dict:
     paths = write_outputs(Path(args.out), facilities, links)
     report = {
         "source_records": counts,
-        "skipped_sources": [s for s, given in (("wri_gppd", args.wri), ("gem", args.gem), ("vnf", args.vnf)) if not given],
+        "skipped_sources": [s for s, given in (("wri_gppd", args.wri), ("gem", args.gem), ("vnf", args.vnf), ("ggfr", args.ggfr)) if not given],
         "facilities": len(facilities), "linked_records": len(links),
         "multi_source_facilities": int((facilities.source_count > 1).sum()),
         "with_footprint": int(facilities.footprint.notna().sum()),
@@ -59,6 +62,8 @@ def build(args: argparse.Namespace) -> dict:
         if not dsn:
             raise SystemExit("--postgis needs --dsn or DATABASE_URL")
         report["postgis_rows"] = persist_postgis(dsn.replace("postgresql+psycopg2://", "postgresql://"), facilities, links)
+        if not args.no_baseline_refresh:
+            report["baseline"] = refresh_thermal_baseline(dsn.replace("postgresql+psycopg2://", "postgresql://"))
     print(json.dumps(report, indent=2))
     return report
 
@@ -71,12 +76,15 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--wri", help="WRI Global Power Plant Database CSV")
     b.add_argument("--gem", action="append", help="<file>:<tracker>, repeatable; trackers: " + ", ".join(sorted(GEM_TRACKERS)))
     b.add_argument("--vnf", help="VIIRS Nightfire CSV (detections or flare-site list)")
+    b.add_argument("--ggfr", help="World Bank GFMR flare-location workbook (VIIRS Nightfire derived, open)")
     b.add_argument("--raw-dir", help="auto-discover WRI / GEM / VNF files in this folder (see sources.discover_raw)")
     b.add_argument("--vnf-min-days", type=int, default=5)
     b.add_argument("--distance", type=float, default=500.0, help="merge distance in metres (default 500)")
     b.add_argument("--out", default="data/facilities")
     b.add_argument("--postgis", action="store_true", help="also replace the PostGIS facility tables")
     b.add_argument("--dsn", help="PostgreSQL DSN (default: DATABASE_URL)")
+    b.add_argument("--no-baseline-refresh", action="store_true",
+                   help="skip re-assigning archive detections to the new facility ids (baseline goes stale)")
     args = ap.parse_args(argv)
     build(args)
     return 0

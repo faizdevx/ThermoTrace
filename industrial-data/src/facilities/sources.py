@@ -31,6 +31,9 @@ SOURCES: dict[str, dict] = {
     "vnf": {"priority": 3, "licence": "EOG VIIRS Nightfire terms (CC BY 4.0 as published; verify)",
             "attribution": "Earth Observation Group, Colorado School of Mines (VIIRS Nightfire)",
             "url": "https://eogdata.mines.edu/products/vnf/"},
+    "ggfr": {"priority": 3, "licence": "CC-BY-4.0 (World Bank GFMR; flare detection: EOG VIIRS Nightfire)",
+             "attribution": "World Bank Global Flaring and Methane Reduction Partnership (VIIRS Nightfire, Earth Observation Group)",
+             "url": "https://www.worldbank.org/en/programs/gasflaringreduction/global-flaring-data"},
     "osm": {"priority": 4, "licence": "ODbL-1.0", "attribution": "(c) OpenStreetMap contributors",
             "url": "https://www.openstreetmap.org/copyright"},
 }
@@ -232,13 +235,15 @@ def discover_raw(raw_dir: str | Path) -> dict:
 
     Returns {"wri": path | None, "gem": [(path, tracker), ...], "vnf": [path, ...], "unrecognised": [...]}.
     """
-    found: dict = {"wri": None, "gem": [], "vnf": [], "unrecognised": []}
+    found: dict = {"wri": None, "gem": [], "vnf": [], "ggfr": None, "unrecognised": []}
     for f in sorted(Path(raw_dir).rglob("*")):
         if not f.is_file() or f.suffix.lower() not in (".csv", ".xlsx", ".xls"):
             continue
         name = f.name.lower()
         if "power_plant_database" in name:
             found["wri"] = f
+        elif f.suffix.lower() in (".xlsx", ".xls") and re.search(r"flare.?(volume|location|sites)|ggfr|gfmr", name):
+            found["ggfr"] = f
         elif "vnf" in name or "nightfire" in name or "vnf" in [p.lower() for p in f.parent.parts]:
             found["vnf"].append(f)
         elif (tracker := next((t for pat, t in GEM_FILE_PATTERNS if re.search(pat, name)), None)):
@@ -246,3 +251,35 @@ def discover_raw(raw_dir: str | Path) -> dict:
         else:
             found["unrecognised"].append(f)
     return found
+
+
+def load_ggfr(xlsx_path: str | Path, country: str = "India") -> pd.DataFrame:
+    """World Bank GFMR "Flare Volume Estimates by Individual Flare Location" (VIIRS Nightfire derived, open).
+
+    One row per flare id and year in the workbook; kept: the flare's latest year, with how many years it flared.
+    """
+    book = pd.read_excel(xlsx_path, sheet_name=None)
+    df = next((f for f in book.values() if {"id", "lat", "lon", "Country", "Year"} <= set(map(str, f.columns))), None)
+    if df is None:
+        raise ValueError("no sheet with id/lat/lon/Country/Year columns (expected the GFMR flare-location workbook)")
+    df = df[df["Country"].astype(str).str.strip().str.lower() == country.lower()].copy()
+    if df.empty:
+        return _empty()
+    bcm = pd.to_numeric(df.get("BCM"), errors="coerce")
+    df["_active"] = bcm.fillna(0) > 0
+    years = df[df._active].groupby("id").Year.nunique()
+    total_years = int(df.Year.nunique())
+    last = df.sort_values("Year").groupby("id").tail(1).set_index("id")
+
+    def text(v):
+        return None if v is None or (isinstance(v, float) and np.isnan(v)) or str(v).strip() in ("", "nan") else str(v).strip()
+
+    names = [", ".join(x for x in (text(r.get("Field name")), text(r.get("Operator"))) if x) or None
+             for _, r in last.iterrows()]
+    status = [f"flaring in {int(r.Year)}: {float(r.BCM):.4f} bcm; {int(years.get(i, 0))} of {total_years} years"
+              if pd.notna(r.get("BCM")) else None for i, r in last.iterrows()]
+    out = pd.DataFrame({"source_id": "ggfr:" + last.index.astype(str), "name": names, "kind": "gas_flare",
+                        "lat": pd.to_numeric(last["lat"], errors="coerce").to_numpy(),
+                        "lon": pd.to_numeric(last["lon"], errors="coerce").to_numpy(),
+                        "status": status, "fuel": [text(v) for v in last.get("Field type", pd.Series(index=last.index))]})
+    return _finish(out, "ggfr")

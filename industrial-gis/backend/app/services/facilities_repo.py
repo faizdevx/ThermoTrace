@@ -25,6 +25,8 @@ LICENCES = {
                  "attribution": "World Resources Institute, Global Power Plant Database"},
     "gem": {"name": "Global Energy Monitor trackers", "licence": "CC-BY-4.0 (check each tracker)",
             "attribution": "Global Energy Monitor"},
+    "ggfr": {"name": "World Bank flare sites (VIIRS Nightfire)", "licence": "CC-BY-4.0",
+             "attribution": "World Bank GFMR / Earth Observation Group VIIRS Nightfire"},
     "vnf": {"name": "VIIRS Nightfire (flare sites)", "licence": "EOG terms (CC BY 4.0 as published)",
             "attribution": "Earth Observation Group, Colorado School of Mines"},
 }

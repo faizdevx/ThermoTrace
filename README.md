@@ -47,7 +47,7 @@ ThermoTrace is a Web GIS that does two things on one map:
 
 ![ThermoTrace dashboard: classified FIRMS thermal sources over the merged facility layer](docs/images/dashboard.png)
 
-_Dashboard captured 2026-10-15 from the Docker stack (PostGIS, API, thermal worker, frontend): 2,757 classified FIRMS thermal sources from 7,807 VIIRS detections, status "live" (newest detection about 3 h old), over the 12,567-facility layer (small dots; blue = confirmed by two or more sources). Filled circles are thermal sources (size = radiative power, colour = class, dark ring = alert). The left panel filters by class, window, minimum power and alerts and exports CSV/GeoJSON; the top-right box toggles the facility layer (with the source attributions), the OSM north-east pilot layer and the boundaries. The site cards read 0 because the optional OSM north-east pilot import was not run on this fresh database; the header says so instead of covering the map._
+_Dashboard captured 2026-10-15 from the Docker stack (PostGIS, API, thermal worker, frontend): 2,757 classified FIRMS thermal sources from 7,807 VIIRS detections, status "live" (newest detection about 3 h old), over the 12,762-facility layer (small dots; blue = confirmed by two or more sources). Filled circles are thermal sources (size = radiative power, colour = class, dark ring = alert). The left panel filters by class, window, minimum power and alerts and exports CSV/GeoJSON; the top-right box toggles the facility layer (with the source attributions), the OSM north-east pilot layer and the boundaries. The site cards read 0 because the optional OSM north-east pilot import was not run on this fresh database; the header says so instead of covering the map._
 
 ![Facility provenance: Tirora TPP with its OSM outline and the seven merged source records](docs/images/facility_provenance.png)
 
@@ -87,7 +87,7 @@ Regenerate: `python industrial-data/scripts/train_classifier.py && python indust
 | Phase | Scope | State |
 |---|---|---|
 | 0 | Clean foundation: legacy tests green, thermal layer is the default map, honest README badges | **done** |
-| 1 | Facility database with provenance: OSM + WRI GPPD + GEM + VIIRS Nightfire, PostGIS, API, map layer | **OSM + WRI done; GEM and VNF not loaded** (loaders tested on fixtures; registration/account required) |
+| 1 | Facility database with provenance: OSM + WRI GPPD + GEM + VIIRS Nightfire, PostGIS, API, map layer | **OSM + WRI + VIIRS Nightfire flare sites done; GEM not loaded** (form behind a Cloudflare bot check, must be submitted by a person) |
 | 2 | 12-month FIRMS baseline per facility and per 1 km cell (S-NPP + NOAA-20), z-score of today against it, shown for every source | **done** (see [Baseline](#baseline-what-is-normal-for-this-place)) |
 | 3-9 | labelled evaluation set, model in the live pipeline, imagery as features, alerting, replay demo, judge-facing dashboard | planned - see [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) |
 
@@ -142,20 +142,21 @@ Result on the 2026-10-14 run (5,418 current sources, 365 covered days, 651,824 b
 | 0 | Frontend Docker build | **pass** | `docker compose build frontend` built; the nginx image serves the UI and proxies `/api` on :8080 (screenshot above). nginx now re-resolves the API container, so recreating it no longer leaves a 502 |
 | 0 | CI green | **pass** | the GitHub Actions runs for the last six pushes to `main` finished with `success` (API, PostGIS and frontend jobs) |
 | 0 | PostGIS API suite | **pass** | 34 passed, 0 failed (`backend/tests/postgis`, throw-away database) |
-| 0 | Legacy pipeline tests | **pass** | `industrial-data/tests`: 288 passed, 0 skipped with PostGIS available (261 passed + 27 skipped without a database) |
-| 0 | Facilities in PostGIS, matching reads them | **pass** | table `facilities`; the Docker worker (`THERMAL_SITES_FROM_DB=1`) loads 12,567 rows from it. The GeoJSON file remains a fallback for the no-database mode only |
+| 0 | Legacy pipeline tests | **pass** | `industrial-data/tests`: 290 passed, 0 skipped with PostGIS available |
+| 0 | Facilities in PostGIS, matching reads them | **pass** | table `facilities`; the Docker worker (`THERMAL_SITES_FROM_DB=1`) loads 12,762 rows from it. The GeoJSON file remains a fallback for the no-database mode only |
 | 0 | OSM pilot layer behind a toggle | **pass** | off by default, map shows thermal sources + facilities |
 | 0 | Badges match the code | **pass** | Redis, Celery, MapLibre, Plotly, SciPy removed |
-| 1 | OSM + WRI in PostGIS with provenance | **pass** | 19,497 OSM + 397 WRI records -> 12,567 facilities in `facilities`, every record in `facility_sources` with source id, licence, attribution; 247 plants confirmed by both; 580 OSM outlines |
-| 1 | Global Energy Monitor trackers | **not done** | loader and tests exist (fixtures), but GEM data sits behind a registration form (name, organisation, terms) and has not been downloaded |
-| 1 | VIIRS Nightfire flare sites | **not done** | loader and tests exist (fixtures); needs a free EOG account |
+| 1 | OSM + WRI in PostGIS with provenance | **pass** | 19,497 OSM + 397 WRI records -> part of 12,762 facilities in `facilities`, every record in `facility_sources` with source id, licence, attribution; 248 facilities confirmed by two sources; 580 OSM outlines |
+| 1 | Global Energy Monitor trackers | **not done** | loader and tests exist (fixtures). The GEM download form was filled with the owner's details and consent, but it is protected by a Cloudflare Turnstile bot check that only a person can complete; the files have not been downloaded |
+| 1 | VIIRS Nightfire flare sites | **pass** | 196 Indian flare sites from the World Bank GFMR "Flare Volume Estimates by Individual Flare Location 2012-2025" (VIIRS Nightfire detections processed by the Earth Observation Group; open, CC BY 4.0, no account needed); gas-flare facilities 17 -> 213. The raw EOG VNF files (account required) are not needed for this |
 | 1 | Facilities layer with source attribution | **pass** | `/api/facilities` (PostGIS) + map layer, attribution list and per-record licences in the popup |
 | 2 | 12 months of S-NPP + NOAA-20, `product` column | **pass** | 1,874,454 detections (SP 1,815,205, NRT 62,066) in `thermal_detections`; 365 covered days |
-| 2 | `thermal_baseline` view | **pass** | 651,898 rows (facility and 1 km cell) with active-day fraction, 12-month profile, median/p95 FRP, night share |
+| 2 | `thermal_baseline` view | **pass** | 651,982 rows (facility and 1 km cell) with active-day fraction, 12-month profile, median/p95 FRP, night share; rebuilt automatically when the facility table changes (facility ids can move to a new anchor) |
 | 2 | Every current source: "normally active X% of days, typical FRP Y MW" + z-score | **pass** | of 2,889 current sources, 2,889 have the active-day fraction and a z-score; 1,274 have history at their place (typical FRP shown), the other 1,615 are "never seen here" |
 
-Phase 1 is therefore complete for the two open sources (OSM, WRI) and **incomplete for GEM and VNF**: two of the four
-sources the plan lists are not loaded, because both require a registration only the account owner can do.
+Phase 1 is therefore complete for three of the four sources (OSM, WRI, VIIRS Nightfire flare sites) and **incomplete for
+GEM**: its download form ends in a bot check that only a person can pass. Drop the GEM files into `data/facilities/raw/`
+and run `docker compose --profile bootstrap run --rm facilities` to finish it.
 
 ## What is implemented (and verified)
 
@@ -166,7 +167,7 @@ sources the plan lists are not loaded, because both require a registration only 
 | Thermal layer on the map, class filters, alert flag, source detail panel with reasons + detection timeline, Sentinel-2 true-colour/SWIR chip (clearest scene within 5 days, < 30 % cloud, `/api/thermal/sources/{id}/imagery`), CSV/GeoJSON export | working (frontend tests + browser check of the map layer) |
 | Snapshot **and** PostGIS storage (`thermal_sources`, `thermal_detections`, `thermal_runs`) | PostGIS path run against a real PostGIS container |
 | OSM industrial sites: baseline import + incremental replication (osm2pgsql) with durable checkpoint, locking, backoff, revisions | 23 lifecycle tests; baseline imported (below); catching up to the live diff feed **not observed to completion** |
-| Merged facility database (OSM 19,497 records + WRI GPPD 397 plants -> 12,567 facilities, 247 confirmed by both, 580 with OSM footprints) with per-record source id, licence and attribution; `facilities` / `facility_sources` tables, `/api/facilities` (PostGIS or files), map layer with provenance popup | 18 unit tests, 5 API tests (files), 4 API tests against PostGIS, 3 popup tests; PostGIS load run against a real PostGIS container |
+| Merged facility database (OSM 19,497 records + WRI GPPD 397 plants + 196 World Bank / VIIRS Nightfire flare sites -> 12,762 facilities, 248 confirmed by two sources, 580 with OSM footprints) with per-record source id, licence and attribution; `facilities` / `facility_sources` tables, `/api/facilities` (PostGIS or files), map layer with provenance popup | 18 unit tests, 5 API tests (files), 4 API tests against PostGIS, 3 popup tests; PostGIS load run against a real PostGIS container |
 | 365-day baseline per facility / 1 km cell (archive download with product-boundary handling, bulk PostGIS load, materialised view, pandas twin, z-score per source, detail-panel row) | 9 unit tests, 4 SQL-vs-pandas parity tests against PostGIS, 4 UI tests; run on 1.88 M real detections |
 | REST API, SSE change notifications with polling fallback, live-status panel | tests below |
 | Government sources (India Industrial Land Bank, ICLP, NCoG) | **not integrated** - see [Data sources](#data-sources) |
@@ -236,9 +237,9 @@ API runs with `DATA_MODE=postgis`, the files otherwise, always with per-source l
 returns the footprint and every merged source record. On the map the "Facilities" layer lists the attributions,
 blue dots are confirmed by 2+ sources, and a click shows the sources with licences and draws the OSM outline.
 
-Current build (2026-10-15): 12,567 facilities from 19,497 OSM records and 397 WRI GPPD thermal plants; 247 plants
-are confirmed by both, 580 carry an OSM footprint. GEM and VIIRS Nightfire are supported but **not loaded yet**
-(GEM needs a registration form, VNF a free EOG account). On the same FIRMS window the merged facilities change
+Current build (2026-10-15): 12,762 facilities from 19,497 OSM records, 397 WRI GPPD thermal plants and 196 VIIRS Nightfire
+flare sites (World Bank GFMR); 248 are confirmed by two sources, 580 carry an OSM footprint. GEM is supported but
+**not loaded** (its form is behind a bot check a person must pass). On the same FIRMS window the merged facilities change
 14 of 5,384 sources: 6 persistent sources gain a power plant only WRI lists; 8 crop/vegetation fires within a
 plant's (larger, merged) radius become "fire candidate", which is the known cost of radius-based matching.
 
@@ -247,7 +248,8 @@ plant's (larger, merged) radius become "fire candidate", which is the known cost
 | OpenStreetMap | ODbL-1.0 | existing Overpass cache |
 | WRI Global Power Plant Database | CC BY 4.0 | free CSV |
 | Global Energy Monitor trackers | CC BY 4.0 (check each tracker) | free download after a form |
-| VIIRS Nightfire (EOG) | EOG terms | free account required |
+| VIIRS Nightfire (EOG) | EOG terms | free account required (raw detections; optional) |
+| VIIRS Nightfire flare sites via World Bank GFMR | CC BY 4.0 | open download, used by default (`--ggfr`, or auto-discovered in `data/facilities/raw`) |
 
 ## Architecture
 
@@ -338,7 +340,7 @@ TEST_DATABASE_URL=postgresql://user:pw@localhost:5432/postgres python -m pytest 
 cd industrial-gis/frontend && npx tsc --noEmit && npm test && npm run build
 ```
 
-Results on the development machine (2026-10-15): `industrial-data/tests` 288 passed with PostGIS available (261 passed + 27 skipped without a database); API synthetic suite 62 passed; API against PostGIS 34 passed; frontend `tsc` clean, vitest 34 passed. GitHub Actions: the last six pushes to `main` completed with `success`.
+Results on the development machine (2026-10-15): `industrial-data/tests` 290 passed with PostGIS available; API synthetic suite 62 passed; API against PostGIS 34 passed; frontend `tsc` clean, vitest 37 passed. GitHub Actions: the pushes to `main` completed with `success`.
 
 ## Configuration
 
@@ -349,7 +351,7 @@ See `.env.example`. Key variables: `POSTGRES_*`, `ALLOWED_ORIGINS`, `ADMIN_TOKEN
 * The live classifier is rule-based with expert priors. A trained model beats it on a held-out split, but against **weak rule-derived labels, not ground truth**; incident evidence covers only 23 of 40 documented incidents (17 could not be located) and is mostly near the detection floor. Agricultural vs. other low-power vegetation fires and industrial vs. unmapped industry depend on OSM completeness.
 * VIIRS is 375 m and ~3 h behind real time; a short-lived industrial event can fall between overpasses. Persistence needs history: the first run only has the 7 days FIRMS publishes (history accumulates afterwards).
 * Facility matching uses a radius around a representative point (the equivalent-area radius of the OSM outline where one is stored, else the outline's bounding box, else a kind default); large plants can be missed or over-matched, and merging records widens the circle (on one FIRMS window, 8 of 5,384 crop/vegetation sources became "fire candidate" for that reason).
-* Only OSM and WRI are loaded in the facility database. Global Energy Monitor trackers (steel, coal mines, cement, oil and gas) need a registration form and VIIRS Nightfire a free EOG account; their loaders are tested on fixtures, not on the real files, and their licence strings are the maintainers' reading of the published terms.
+* Global Energy Monitor trackers (steel, coal mines, cement, oil and gas plants) are not loaded: the download form is protected by a Cloudflare bot check that a person has to complete. Their loader is tested on fixtures, not on the real files.
 * OSM footprints are stored only for power plants, refineries, steel, cement and chemical works (3,800 outlines, 580 attached to merged facilities); mines, landfills and generic works are bounding boxes.
 * OSM sites cover only the imported region; thermal facility matching is India-wide. 105 pilot sites sit outside geoBoundaries' state polygons (neighbouring countries / border simplification).
 * OSM industrial tags describe land use or features, not confirmed operation; `status` is `mapped` unless disused/abandoned/construction is tagged.

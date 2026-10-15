@@ -20,6 +20,8 @@ interface HeaderProps {
   onConfidenceChange: (value: string) => void;
   onSearch: () => void;
   onReset: () => void;
+  /** Search + filters act on the OSM industrial-sites pilot only; hidden while that layer is off. */
+  pilotControls?: boolean;
 }
 
 const selectStyle: React.CSSProperties = {
@@ -56,6 +58,7 @@ export function Header({
   onConfidenceChange,
   onSearch,
   onReset,
+  pilotControls = true,
 }: HeaderProps) {
   const districts = availableDistricts ?? options?.districts ?? [];
 
@@ -90,8 +93,14 @@ export function Header({
         {/* Divider */}
         <div style={{ width: 1, height: 36, background: '#e2e8f0', flexShrink: 0 }} className="hidden-mobile" />
 
+        {!pilotControls && (
+          <p style={{ margin: 0, fontSize: 12.5, color: '#475569', flex: '1 1 300px' }}>
+            NASA FIRMS heat sources classified against a merged facility database and a 365-day baseline.
+            Search and site filters belong to the OSM industrial-sites pilot - tick it under Layers to use them.
+          </p>
+        )}
         {/* Search bar */}
-        <form
+        {pilotControls && <form
           onSubmit={e => { e.preventDefault(); onSearch(); }}
           style={{ flex: '1 1 300px', display: 'flex', gap: 8, alignItems: 'center' }}
         >
@@ -162,11 +171,11 @@ export function Header({
           >
             Reset
           </button>
-        </form>
+        </form>}
       </div>
 
       {/* ── Filter row ────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+      {pilotControls && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', flexShrink: 0 }}>
           Filter:
         </span>
@@ -278,7 +287,7 @@ export function Header({
             ))}
           </div>
         )}
-      </div>
+      </div>}
     </header>
   );
 }

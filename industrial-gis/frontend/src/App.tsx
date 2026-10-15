@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Header } from '@/components/Header';
 import { StatisticsCards } from '@/components/StatisticsCards';
+import { ThermalCards, thermalCardValues } from '@/components/ThermalCards';
 import { MapView, EVIDENCE_COLORS, type FitRequest, type MapViewport } from '@/components/MapView';
 import { IndustryDetails } from '@/components/IndustryDetails';
 import { AnalyticsPanel } from '@/components/AnalyticsPanel';
@@ -384,6 +385,7 @@ export default function App() {
 
       <div style={{ flexShrink: 0, padding: '12px 14px 0' }}>
         <Header
+          pilotControls={showSites}
           searchDraft={searchDraft}
           selectedState={selectedState}
           selectedDistrict={selectedDistrict}
@@ -405,12 +407,24 @@ export default function App() {
       </div>
 
       <div style={{ flexShrink: 0, padding: '10px 14px 0' }}>
-        <StatisticsCards statistics={statistics} onShowAnalytics={() => setShowAnalytics(true)} />
-        <p style={{ margin: '4px 4px 0', fontSize: 10, color: '#94a3b8' }}>
-          Cards and analytics count{' '}
-          <strong>{anyFilter ? 'all sites matching your filters' : 'the whole loaded dataset'}</strong>
-          {' '}(not just the map view).
-        </p>
+        {showSites ? (
+          <>
+            <StatisticsCards statistics={statistics} onShowAnalytics={() => setShowAnalytics(true)} />
+            <p style={{ margin: '4px 4px 0', fontSize: 10, color: '#94a3b8' }}>
+              Cards and analytics count{' '}
+              <strong>{anyFilter ? 'all sites matching your filters' : 'the whole loaded dataset'}</strong>
+              {' '}of the OSM industrial-sites pilot (not just the map view).
+            </p>
+          </>
+        ) : (
+          <>
+            <ThermalCards values={thermalCardValues(thermal.stats, thermal.data, facilities)} />
+            <p style={{ margin: '4px 4px 0', fontSize: 10, color: '#94a3b8' }}>
+              Thermal cards follow the thermal filters (class, window, power, alerts); facility cards count the whole
+              merged facility database. Tick <em>Industrial sites (OSM pilot)</em> to see the pilot's own cards.
+            </p>
+          </>
+        )}
       </div>
 
       {/* ── Status bar ──────────────────────────────────────────────────── */}
@@ -440,12 +454,12 @@ export default function App() {
           </span>
         )}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <ExportMenu
+          {showSites && <ExportMenu
             filters={scopeFilters}
             viewportBbox={viewport?.bbox ?? null}
             totalMatching={statistics?.total_sites ?? null}
             disabled={backendStatus === 'offline' || synthetic}
-          />
+          />}
           <span style={{
             fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em',
             padding: '2px 10px', borderRadius: 99,

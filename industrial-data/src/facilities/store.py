@@ -100,3 +100,25 @@ def persist_postgis(dsn: str, facilities: pd.DataFrame, links: pd.DataFrame) -> 
     finally:
         conn.close()
     return len(facilities)
+
+
+def refresh_thermal_baseline(dsn: str) -> dict | None:
+    """Facility ids can change when a new source becomes a cluster's anchor, so the baseline's
+    detection -> facility assignment is rebuilt from scratch after the facility tables are replaced."""
+    import psycopg2
+    conn = psycopg2.connect(dsn)
+    try:
+        with conn, conn.cursor() as cur:
+            cur.execute("SELECT to_regclass('public.thermal_detection_geo'), to_regclass('public.thermal_baseline')")
+            geo, view = cur.fetchone()
+            if geo is None or view is None:
+                return None
+            cur.execute("TRUNCATE thermal_detection_geo")
+            cur.execute("SELECT assign_thermal_geo()")
+            assigned = cur.fetchone()[0]
+            cur.execute("REFRESH MATERIALIZED VIEW thermal_baseline")
+            cur.execute("SELECT count(*), count(*) FILTER (WHERE scope = 'facility') FROM thermal_baseline")
+            rows, fac = cur.fetchone()
+    finally:
+        conn.close()
+    return {"detections_reassigned": int(assigned), "baseline_rows": int(rows), "baseline_facility_rows": int(fac)}

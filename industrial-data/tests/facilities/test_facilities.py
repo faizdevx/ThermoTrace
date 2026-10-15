@@ -244,3 +244,24 @@ def test_merged_radius_covers_every_member_circle():
     )])
     d = links.set_index("source").loc["osm", "distance_m"]
     assert len(fac) == 1 and abs(fac.iloc[0].radius_m - (2000.0 + d)) < 1e-6
+
+
+def test_load_ggfr_keeps_latest_year_per_indian_flare(tmp_path):
+    from src.facilities.sources import load_ggfr
+    rows = []
+    for year in (2023, 2024, 2025):
+        rows.append({"id": "s_1", "lat": 27.318, "lon": 95.266, "Country": "India", "BCM": 0.02 if year != 2024 else 0,
+                     "Year": year, "Field type": "OIL", "Operator": "Oil India", "Field name": "Nahorkatiya",
+                     "Location": "ONSHORE"})
+    rows.append({"id": "s_2", "lat": 25.0, "lon": 55.0, "Country": "UAE", "BCM": 1.0, "Year": 2025,
+                 "Field type": "GAS", "Operator": "X", "Field name": "Y", "Location": "ONSHORE"})
+    p = tmp_path / "Flare-Volume-Estimates-by-individual-Flare-Location-2012-2025.xlsx"
+    with pd.ExcelWriter(p) as xw:
+        pd.DataFrame(rows).to_excel(xw, sheet_name="Dashboard_file", index=False)
+        pd.DataFrame({"a": [1]}).to_excel(xw, sheet_name="Pivot", index=False)
+    out = load_ggfr(p)
+    assert list(out.source_id) == ["ggfr:s_1"] and out.kind.iloc[0] == "gas_flare"
+    assert out.name.iloc[0] == "Nahorkatiya, Oil India" and out.fuel.iloc[0] == "OIL"
+    assert out.status.iloc[0] == "flaring in 2025: 0.0200 bcm; 2 of 3 years"
+    from src.facilities.sources import discover_raw
+    assert discover_raw(tmp_path)["ggfr"] == p

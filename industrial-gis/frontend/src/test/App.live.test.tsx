@@ -162,6 +162,9 @@ describe('App live updates (no page reload)', () => {
 
   it('keeps the user filters and never lets a slow older response overwrite a newer one', async () => {
     await boot();
+    // the site filters belong to the OSM pilot layer, which is off by default: switch it on like a user would
+    await act(async () => { fireEvent.click(document.getElementById('toggle-sites')!); });
+    await settle(10);
     const { fetchIndustries } = await import('@/services/api');
     const calls: Array<(v: unknown) => void> = [];
     const original = vi.mocked(fetchIndustries).getMockImplementation()!;
@@ -205,6 +208,17 @@ describe('App live updates (no page reload)', () => {
     await settle(1700);
 
     expect(screen.getByText('Polled Plant')).toBeInTheDocument();
+  });
+
+  it('default view shows thermal/facility cards and hides the pilot-only search and filters', async () => {
+    await boot();
+    expect(screen.getByTestId('thermal-cards')).toBeInTheDocument();
+    expect(document.getElementById('filter-state')).toBeNull();
+    expect(document.getElementById('site-search-input')).toBeNull();
+    await act(async () => { fireEvent.click(document.getElementById('toggle-sites')!); });
+    await settle(10);
+    expect(document.getElementById('filter-state')).not.toBeNull();
+    expect(screen.queryByTestId('thermal-cards')).toBeNull();
   });
 
   it('reports the empty-database state instead of pretending to have data', async () => {

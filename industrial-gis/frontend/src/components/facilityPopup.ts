@@ -1,7 +1,7 @@
 import type { FacilityDetail } from '@/types/industrial';
 
 const SOURCE_LABEL: Record<string, string> = {
-  osm: 'OpenStreetMap', wri_gppd: 'WRI Power Plant DB', gem: 'Global Energy Monitor', vnf: 'VIIRS Nightfire',
+  osm: 'OpenStreetMap', wri_gppd: 'WRI Power Plant DB', gem: 'Global Energy Monitor', vnf: 'VIIRS Nightfire', ggfr: 'World Bank flare sites (VIIRS Nightfire)',
 };
 
 export function escapeHtml(value: unknown): string {

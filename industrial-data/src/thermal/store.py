@@ -139,7 +139,14 @@ def persist_postgis(dsn: str, a: Analysis) -> int:
                     _i(r.get("baseline_covered_days")), _f(r.get("baseline_frp_median")),
                     _f(r.get("baseline_frp_p95")), _f(r.get("baseline_night_share")),
                     json.dumps(r["baseline_monthly"]) if isinstance(r.get("baseline_monthly"), list) else None,
-                    r.get("baseline_window_end"), _f(r.get("frp_today")), r.get("frp_today_date"), _f(r.get("frp_z"))))
+                    r.get("baseline_window_end"), _f(r.get("frp_today")), r.get("frp_today_date"), _f(r.get("frp_z")),
+                    _s(r.get("model_version")), _s(r.get("model_class")), _f(r.get("model_probability")),
+                    json.dumps(r["model_probabilities"]) if isinstance(r.get("model_probabilities"), dict) else None,
+                    json.dumps(r["model_reasons"]) if isinstance(r.get("model_reasons"), list) else None,
+                    r.get("imagery_available") if isinstance(r.get("imagery_available"), (bool, np.bool_)) else None,
+                    _s(r.get("imagery_scene_id")), _s(r.get("imagery_scene_time")), _f(r.get("imagery_cloud_percent")),
+                    _s(r.get("imagery_before_time")), _f(r.get("imagery_dnbr_p95")), _f(r.get("imagery_burned_fraction")),
+                    _i(r.get("imagery_swir_hot_pixels")), _f(r.get("imagery_landsat_excess_k")), _s(r.get("imagery_checked_at"))))
             psycopg2.extras.execute_values(
                 cur,
                 """INSERT INTO thermal_sources (source_id, geometry, thermal_class, thermal_label, class_confidence,
@@ -149,7 +156,10 @@ def persist_postgis(dsn: str, a: Analysis) -> int:
                        lc_vegetation, lc_built, lc_bare, instruments, run_id, baseline_scope, baseline_key,
                        baseline_active_fraction, baseline_covered_days, baseline_frp_median, baseline_frp_p95,
                        baseline_night_share, baseline_monthly, baseline_window_end, frp_today, frp_today_date,
-                       frp_z) VALUES %s
+                       frp_z, model_version, model_class, model_probability, model_probabilities,
+                       model_reasons, imagery_available, imagery_scene_id, imagery_scene_time, imagery_cloud_percent,
+                       imagery_before_time, imagery_dnbr_p95, imagery_burned_fraction, imagery_swir_hot_pixels,
+                       imagery_landsat_excess_k, imagery_checked_at) VALUES %s
                    ON CONFLICT (source_id) DO UPDATE SET geometry = EXCLUDED.geometry,
                        thermal_class = EXCLUDED.thermal_class, thermal_label = EXCLUDED.thermal_label,
                        class_confidence = EXCLUDED.class_confidence, class_margin = EXCLUDED.class_margin,
@@ -171,10 +181,20 @@ def persist_postgis(dsn: str, a: Analysis) -> int:
                        baseline_night_share = EXCLUDED.baseline_night_share,
                        baseline_monthly = EXCLUDED.baseline_monthly, baseline_window_end = EXCLUDED.baseline_window_end,
                        frp_today = EXCLUDED.frp_today, frp_today_date = EXCLUDED.frp_today_date,
-                       frp_z = EXCLUDED.frp_z, updated_at = NOW()""",
+                       frp_z = EXCLUDED.frp_z, model_version = EXCLUDED.model_version,
+                       model_class = EXCLUDED.model_class, model_probability = EXCLUDED.model_probability,
+                       model_probabilities = EXCLUDED.model_probabilities, model_reasons = EXCLUDED.model_reasons,
+                       imagery_available = EXCLUDED.imagery_available, imagery_scene_id = EXCLUDED.imagery_scene_id,
+                       imagery_scene_time = EXCLUDED.imagery_scene_time, imagery_cloud_percent = EXCLUDED.imagery_cloud_percent,
+                       imagery_before_time = EXCLUDED.imagery_before_time, imagery_dnbr_p95 = EXCLUDED.imagery_dnbr_p95,
+                       imagery_burned_fraction = EXCLUDED.imagery_burned_fraction,
+                       imagery_swir_hot_pixels = EXCLUDED.imagery_swir_hot_pixels,
+                       imagery_landsat_excess_k = EXCLUDED.imagery_landsat_excess_k,
+                       imagery_checked_at = EXCLUDED.imagery_checked_at, updated_at = NOW()""",
                 rows, template="(%s,ST_GeomFromEWKT(%s),%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
                                "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
-                               "%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s)", page_size=1000)
+                               "%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,"
+                               "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", page_size=1000)
             cur.execute(
                 """UPDATE thermal_runs SET status='success', finished_at=NOW(), detections=%s, sources=%s,
                        latest_detection=%s, summary=%s::jsonb WHERE id=%s""",
@@ -189,6 +209,21 @@ def persist_postgis(dsn: str, a: Analysis) -> int:
         return run_id
     finally:
         conn.close()
+
+
+def register_model(dsn: str, metrics_path) -> str | None:
+    """Store the model's evaluation record next to the data it scored (served by /api/thermal/model)."""
+    import psycopg2
+    from pathlib import Path as _P
+    p = _P(metrics_path)
+    if not p.exists():
+        return None
+    metrics = json.loads(p.read_text(encoding="utf-8"))
+    with psycopg2.connect(dsn) as conn, conn.cursor() as cur:
+        cur.execute("""INSERT INTO thermal_model (model_version, metrics) VALUES (%s, %s::jsonb)
+                       ON CONFLICT (model_version) DO UPDATE SET metrics = EXCLUDED.metrics""",
+                    (metrics["model_version"], json.dumps(metrics)))
+    return metrics["model_version"]
 
 
 def _i(v):

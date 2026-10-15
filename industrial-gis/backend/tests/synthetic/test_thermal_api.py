@@ -37,7 +37,10 @@ def client(tmp_path, monkeypatch):
         "baseline_scope": "facility", "baseline_known": True, "baseline_active_fraction": 0.71,
         "baseline_covered_days": 365, "baseline_frp_median": 3.2, "baseline_frp_p95": 9.8,
         "baseline_night_share": 0.9, "baseline_monthly": [0.5] * 12, "frp_today": 30.0, "frp_z": 3.1,
-        "frp_today_date": "2026-10-08", "baseline_window_end": "2026-09-24"})
+        "frp_today_date": "2026-10-08", "baseline_window_end": "2026-09-24",
+        "model_version": "thermal-gbm-test", "model_class": "industrial_persistent", "model_probability": 0.97,
+        "model_probabilities": {"industrial_persistent": 0.97, "agricultural_burning": 0.02, "vegetation_fire": 0.01},
+        "model_reasons": ["distance to the nearest mapped facility 120 m supports a persistent industrial source (+0.31)"]})
     meta = {"summary": {"sources": 4, "alerts": 1, "latest_detection": "2026-10-08T20:00:00+00:00"}, "attribution": ["x"]}
     (tmp_path / "thermal_sources.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": feats, "metadata": meta}))
     (tmp_path / "thermal_detections.csv").write_text(
@@ -117,7 +120,7 @@ def test_missing_snapshot_is_503_with_hint(tmp_path, monkeypatch):
     assert c.get("/api/thermal/status").json()["available"] is False
 
 
-def test_imagery_scene_choice_is_clearest_within_window(monkeypatch):
+def test_imagery_scene_choice_is_clearest_within_window(monkeypatch, tmp_path):
     from datetime import datetime, timezone
     from backend.app.services import imagery
 
@@ -136,12 +139,47 @@ def test_imagery_scene_choice_is_clearest_within_window(monkeypatch):
     assert [p["feature"]["id"] for p in picks] == ["ok-tie", "ok-clearer", "ok-near"]   # clearest first, ties by closeness
     assert picks[0]["offset_days"] < 0 and all(p["cloud"] < imagery.MAX_CLOUD for p in picks)
 
-    monkeypatch.setattr(imagery, "search", lambda lon, lat, centre: [])
+    monkeypatch.setattr(imagery.core, "stac_search", lambda *a, **k: [])
+    monkeypatch.setenv("THERMAL_IMAGERY_DIR", str(tmp_path / "imagery"))
     out = imagery.chip_for("t-none", 85.0, 21.0, "2026-10-08T20:00:00+00:00")
     assert out["available"] is False and "No Sentinel-2 scene" in out["reason"] and out["search"]["max_cloud_percent"] == 30.0
+    assert out["landsat"]["available"] is False
+    # the "nothing found" answer is cached on disk next to the worker's results
+    assert list((tmp_path / "imagery").glob("t-none__2026-10-08.json"))
 
 
 def test_baseline_fields_reach_the_client(client):
     p = client.get("/api/thermal/sources/a").json()["properties"]
     assert p["baseline_scope"] == "facility" and p["baseline_active_fraction"] == 0.71
     assert p["baseline_frp_p95"] == 9.8 and len(p["baseline_monthly"]) == 12 and p["frp_z"] == 3.1
+
+
+def test_model_fields_and_model_endpoint(client, tmp_path, monkeypatch):
+    p = client.get("/api/thermal/sources/a").json()["properties"]
+    assert p.get("model_class") == "industrial_persistent" and 0.9 <= p["model_probability"] <= 1.0
+    assert p["model_reasons"] and p["model_version"].startswith("thermal-gbm-")
+    metrics = tmp_path / "metrics.json"
+    metrics.write_text(json.dumps({"model_version": "thermal-gbm-test", "results": {"model": {"macro_f1": 0.9}}}))
+    monkeypatch.setenv("THERMAL_MODEL_METRICS", str(metrics))
+    d = client.get("/api/thermal/model").json()
+    assert d["available"] is True and d["model_version"] == "thermal-gbm-test" and d["metrics"]["results"]["model"]["macro_f1"] == 0.9
+    monkeypatch.setenv("THERMAL_MODEL_METRICS", str(tmp_path / "missing.json"))
+    assert client.get("/api/thermal/model").json()["available"] in (True, False)
+
+
+def test_imagery_endpoint_returns_the_full_evidence_shape(client, monkeypatch):
+    from backend.app.services import imagery
+    seen = {}
+
+    def fake(source_id, lon, lat, last_seen, first_seen=None):
+        seen.update(first_seen=first_seen, lon=lon)
+        return {"available": True, "reason": None, "window_km": 3.0, "scene": {"id": "S2B_x", "datetime": "2026-10-08T05:00:00+00:00",
+                "cloud_cover_percent": 4.0}, "before_scene": {"id": "S2B_y", "datetime": "2026-09-28T05:00:00+00:00"},
+                "images": {"after": {"true_colour": "data:image/png;base64,AA", "swir": "data:image/png;base64,AA"}},
+                "indices": {"dnbr_p95": 0.4, "severity": "moderate-low severity", "burned_fraction": 0.2},
+                "hot_pixels": {"count": 3, "fraction": 0.0001}, "landsat": {"available": False}}
+    monkeypatch.setattr(imagery, "chip_for", fake)
+    d = client.get("/api/thermal/sources/b/imagery").json()
+    assert d["available"] and d["indices"]["dnbr_p95"] == 0.4 and d["hot_pixels"]["count"] == 3 and d["before_scene"]["id"] == "S2B_y"
+    assert seen["first_seen"] == "2026-10-02T20:00:00+00:00"          # the route passes the first detection time through
+    assert client.get("/api/thermal/sources/nope/imagery").status_code == 404

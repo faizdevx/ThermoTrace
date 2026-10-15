@@ -85,7 +85,12 @@ def sample_many(points: pd.DataFrame, cache_path: str | Path | None = None, work
     if cache_file and cache_file.exists():
         cache = pd.read_json(cache_file, orient="index").to_dict("index")
     keys = points.apply(lambda r: f"{round(r.lat / 0.002) * 0.002:.3f},{round(r.lon / 0.002) * 0.002:.3f}", axis=1)
-    todo = sorted({k for k in keys if k not in cache})
+    # entries written before the 'woody' group existed lack it: read those cells again
+    def stale(k: str) -> bool:
+        e = cache.get(k)
+        return e is None or (pd.isna(e.get('woody')) and pd.notna(e.get('vegetation')))
+
+    todo = sorted({k for k in keys if stale(k)})
     logger.info("land cover: %d cells to read (%d cached)", len(todo), len(set(keys)) - len(todo))
 
     def work(key: str) -> tuple[str, dict]:

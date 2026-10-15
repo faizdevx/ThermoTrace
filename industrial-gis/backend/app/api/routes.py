@@ -398,6 +398,32 @@ def facility_detail(facility_id: str) -> dict[str, Any]:
     return found
 
 
+@router.get("/thermal/model")
+def thermal_model() -> dict[str, Any]:
+    """The trained model's identity and its held-out evaluation (rules vs model, blind ablation, incident check)."""
+    import json as _json
+    import os as _os
+    from pathlib import Path as _Path
+
+    try:
+        from sqlalchemy import text
+        from backend.app.db import get_engine
+        with get_engine().connect() as c:
+            row = c.execute(text("SELECT model_version, metrics, registered_at FROM thermal_model "
+                                 "ORDER BY registered_at DESC LIMIT 1")).mappings().first()
+        if row:
+            return {"available": True, "source": "database", "model_version": row["model_version"],
+                    "registered_at": row["registered_at"].isoformat(), "metrics": row["metrics"]}
+    except Exception:  # noqa: BLE001 - no database / table: fall back to the file next to the model
+        pass
+    default = _Path(__file__).resolve().parents[4] / "industrial-data" / "models" / "metrics.json"
+    path = _Path(_os.getenv("THERMAL_MODEL_METRICS", str(default)))
+    if path.exists():
+        m = _json.loads(path.read_text(encoding="utf-8"))
+        return {"available": True, "source": "file", "model_version": m.get("model_version"), "metrics": m}
+    return {"available": False, "reason": "No trained model registered. Run: python industrial-data/scripts/evaluate.py"}
+
+
 @router.get("/thermal/classes")
 def thermal_classes() -> dict[str, Any]:
     """Class metadata for legends: label, colour and what each class means."""
@@ -454,14 +480,15 @@ def thermal_source(source_id: str) -> dict[str, Any]:
 
 @router.get("/thermal/sources/{source_id}/imagery")
 def thermal_source_imagery(source_id: str) -> dict[str, Any]:
-    """One Sentinel-2 chip pair (true colour + SWIR) for the source's location, or an honest 'not available'."""
+    """Sentinel-2 chips (after + before, true colour and SWIR), NBR / dNBR, SWIR hot pixels and a Landsat thermal
+    check for the source's location, or an honest 'not available'."""
     backend = thermal_repo.get_backend()
     feature = backend.get_source(source_id) if backend.available() else None
     if feature is None:
         raise HTTPException(status_code=404, detail="Thermal source not found (it may have aged out of the window).")
     lon, lat = feature["geometry"]["coordinates"]
     try:
-        return imagery.chip_for(source_id, lon, lat, feature["properties"]["last_seen"])
+        return imagery.chip_for(source_id, lon, lat, feature["properties"]["last_seen"], feature["properties"].get("first_seen"))
     except Exception as exc:  # noqa: BLE001 - STAC / COG network failures
         logger.warning("imagery failed for %s: %s", source_id, exc)
         raise HTTPException(status_code=502, detail="Satellite imagery service unavailable. Try again later.") from exc

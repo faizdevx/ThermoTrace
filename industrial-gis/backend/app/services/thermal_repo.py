@@ -233,12 +233,15 @@ class PostgisBackend:
              "night_fraction, extent_m, lc_dominant, lc_crop, lc_vegetation, lc_built, lc_bare, instruments, "
              "baseline_scope, baseline_key, baseline_active_fraction, baseline_covered_days, baseline_frp_median, "
              "baseline_frp_p95, baseline_night_share, baseline_monthly, baseline_window_end, frp_today, "
-             "frp_today_date, frp_z")
+             "frp_today_date, frp_z, model_version, model_class, model_probability, model_probabilities, model_reasons, "
+             "imagery_available, imagery_scene_id, imagery_scene_time, imagery_cloud_percent, imagery_before_time, "
+             "imagery_dnbr_p95, imagery_burned_fraction, imagery_swir_hot_pixels, imagery_landsat_excess_k, imagery_checked_at")
 
     def _feature(self, row) -> dict:
         d = dict(row)
         lon, lat = d.pop("lon"), d.pop("lat")
-        for k in ("first_seen", "last_seen", "baseline_window_end", "frp_today_date"):
+        for k in ("first_seen", "last_seen", "baseline_window_end", "frp_today_date", "imagery_scene_time", "imagery_before_time",
+                  "imagery_checked_at"):
             d[k] = d[k].isoformat() if d.get(k) else None
         d["baseline_known"] = d.get("baseline_frp_median") is not None
         return {"type": "Feature", "geometry": {"type": "Point", "coordinates": [lon, lat]}, "properties": d}

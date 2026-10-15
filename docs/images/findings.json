@@ -48,33 +48,5 @@
     "no_detection": 12,
     "not_assessable": 8,
     "routine_source": 7
-  },
-  "eval": {
-    "rules": {
-      "macro_f1": 0.634,
-      "accuracy": 0.587
-    },
-    "model": {
-      "macro_f1": 0.872,
-      "accuracy": 0.885
-    },
-    "thermal_only": {
-      "macro_f1": 0.325,
-      "accuracy": 0.449
-    }
-  },
-  "rules_recall": {
-    "industrial_persistent": 0.44,
-    "industrial_fire_candidate": 0.88,
-    "unmapped_persistent": 0.37,
-    "agricultural_burning": 0.96,
-    "vegetation_fire": 0.98
-  },
-  "model_recall": {
-    "industrial_persistent": 0.83,
-    "industrial_fire_candidate": 0.92,
-    "unmapped_persistent": 0.89,
-    "agricultural_burning": 0.93,
-    "vegetation_fire": 1.0
   }
 }

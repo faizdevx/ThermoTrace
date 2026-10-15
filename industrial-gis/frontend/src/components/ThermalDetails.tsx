@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { fetchThermalImagery } from '@/services/api';
 import { baselineSummary, MONTH_LABELS, type Deviation } from '@/components/baselineSummary';
+import { modelOpinion } from '@/components/modelOpinion';
+import { imageryEvidence } from '@/components/imageryEvidence';
 import type { ThermalClassInfo, ThermalDetection, ThermalFeature, ThermalImagery, ThermalProperties } from '@/types/industrial';
 
 const NA = 'Not available';
@@ -49,30 +51,43 @@ function ImageryPanel({ sourceId }: { sourceId: string }) {
     return () => controller.abort();
   }, [sourceId]);
 
-  if (state.status === 'loading') return <span style={{ fontSize: 12, color: '#64748b' }}>Searching Sentinel-2 scenes…</span>;
+  if (state.status === 'loading') return <span style={{ fontSize: 12, color: '#64748b' }}>Searching Sentinel-2 and Landsat scenes (up to 30 s the first time)…</span>;
   if (state.status === 'error') return <span style={{ fontSize: 12, color: '#b91c1c' }}>Satellite imagery service unavailable.</span>;
-  const d = state.data;
-  if (!d.available || !d.true_colour || !d.swir || !d.scene) return <span style={{ fontSize: 12, color: '#64748b' }}>{d.reason ?? NA}</span>;
-  const figure = (src: string, caption: string) => (
-    <figure style={{ margin: 0, flex: 1, position: 'relative' }}>
+  const e = imageryEvidence(state.data);
+  const figure = (key: string, src: string, caption: string) => (
+    <figure key={key} style={{ margin: 0, flex: '1 1 45%', position: 'relative', minWidth: 120 }}>
       <img src={src} alt={caption} style={{ width: '100%', display: 'block', borderRadius: 8 }} />
-      <span aria-hidden style={{ position: 'absolute', left: '50%', top: '50%', width: 14, height: 14, marginLeft: -7, marginTop: -7,
+      <span aria-hidden style={{ position: 'absolute', left: '50%', top: '38%', width: 14, height: 14, marginLeft: -7, marginTop: -7,
                                  border: '1.5px solid #fff', borderRadius: '50%', boxShadow: '0 0 0 1px #0f172a' }} />
       <figcaption style={{ fontSize: 10.5, color: '#475569', marginTop: 3 }}>{caption}</figcaption>
     </figure>
   );
+  const tone = e.dnbr?.tone === 'high' ? { bg: '#fef2f2', fg: '#b91c1c' } : e.dnbr?.tone === 'low' ? { bg: '#fffbeb', fg: '#b45309' }
+    : { bg: '#f1f5f9', fg: '#475569' };
   return (
     <>
-      <div style={{ display: 'flex', gap: 8 }}>
-        {figure(d.true_colour, `True colour (B4/B3/B2) · ${d.window_km} km`)}
-        {figure(d.swir, 'SWIR (B12/B11/B8A): flames and hot ground glow orange')}
+      {!e.available && <span style={{ fontSize: 12, color: '#64748b' }}>{e.reason}</span>}
+      {e.panels.length > 0 && (
+        <div data-testid="imagery-panels" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {e.panels.map(p => figure(p.key, p.src, p.title))}
+        </div>
+      )}
+      {e.afterLine && <div data-testid="imagery-scene" style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>{e.afterLine}</div>}
+      {e.beforeLine && <div style={{ fontSize: 11, color: '#64748b' }}>{e.beforeLine}</div>}
+      {e.available && !e.dnbr && (
+        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>No clear earlier scene or too much cloud over the chip: no dNBR.</div>
+      )}
+      {e.dnbr && (
+        <div data-testid="imagery-dnbr" style={{ marginTop: 5, fontSize: 12, padding: '4px 8px', borderRadius: 8, background: tone.bg,
+                                                   color: tone.fg, fontWeight: 600, display: 'inline-block' }}>
+          dNBR (p95) {e.dnbr.value} - {e.dnbr.severity}; changed like a burn scar over {e.dnbr.burned}
+        </div>
+      )}
+      {e.hotPixels && <div data-testid="imagery-hot" style={{ fontSize: 12, marginTop: 4 }}>{e.hotPixels}</div>}
+      {e.landsat && <div data-testid="imagery-landsat" style={{ fontSize: 12, marginTop: 2, color: '#334155' }}>{e.landsat}</div>}
+      <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 3 }}>
+        {state.data.attribution ?? 'Contains modified Copernicus Sentinel data (ESA); Landsat courtesy of USGS.'}
       </div>
-      <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
-        {d.scene.platform ?? 'Sentinel-2'} · {new Date(d.scene.datetime).toLocaleString()} ({d.scene.offset_days > 0 ? '+' : ''}
-        {d.scene.offset_days.toFixed(1)} d from last detection) · {d.scene.cloud_cover_percent.toFixed(0)}% scene cloud ·{' '}
-        <code>{d.scene.id}</code>
-      </div>
-      <div style={{ fontSize: 10, color: '#94a3b8' }}>{d.attribution}</div>
     </>
   );
 }
@@ -92,6 +107,36 @@ const DEVIATION_STYLE: Record<Deviation, { bg: string; fg: string; label: string
   new: { bg: '#fef2f2', fg: '#b91c1c', label: 'new heat source' },
   unknown: { bg: '#f1f5f9', fg: '#475569', label: 'no comparison available' },
 };
+
+function ModelRow({ p }: { p: ThermalProperties }) {
+  const m = modelOpinion(p);
+  const tone = m.agreement === 'agrees' ? '#047857' : m.agreement === 'differs' ? '#b45309' : '#475569';
+  return (
+    <Row k="Trained model (second opinion)">
+      <div data-testid="model-headline" style={{ fontWeight: 600 }}>{m.headline}</div>
+      <div data-testid="model-agreement" style={{ fontSize: 12, color: tone, fontWeight: 500 }}>{m.note}</div>
+      {m.bars.map(b => (
+        <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, margin: '2px 0' }}>
+          <span style={{ flex: '0 0 170px', color: '#475569' }}>{b.label}</span>
+          <div style={{ flex: 1, height: 6, background: '#e2e8f0', borderRadius: 9 }}>
+            <div style={{ width: `${Math.round(b.p * 100)}%`, height: '100%', background: '#0369a1', borderRadius: 9 }} />
+          </div>
+          <span style={{ width: 32, textAlign: 'right' }}>{Math.round(b.p * 100)}%</span>
+        </div>
+      ))}
+      {m.reasons.length > 0 && (
+        <ul data-testid="model-reasons" style={{ margin: '4px 0 0', paddingLeft: 18, fontSize: 12, fontWeight: 400, lineHeight: 1.45 }}>
+          {m.reasons.map(r => <li key={r}>{r}</li>)}
+        </ul>
+      )}
+      {m.available && (
+        <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 3 }}>
+          Calibrated probabilities; reasons are sampling Shapley values. Model {m.version}. Trained on rule-derived weak labels - see docs/EVALUATION.md.
+        </div>
+      )}
+    </Row>
+  );
+}
 
 function BaselineRow({ p }: { p: ThermalProperties }) {
   const b = baselineSummary(p);
@@ -202,6 +247,8 @@ export function ThermalDetails({ feature, info, gone, onClose }: Props) {
             <div style={{ fontSize: 10, color: '#94a3b8' }}>Dark bars = night passes, amber = day. Height = FRP.</div>
           </Row>
 
+          <ModelRow p={p} />
+
           <BaselineRow p={p} />
 
           <Row k="First / last detection">
@@ -226,7 +273,7 @@ export function ThermalDetails({ feature, info, gone, onClose }: Props) {
             {p.lc_dominant ? <>{p.lc_dominant} dominant · crop {Math.round((p.lc_crop ?? 0) * 100)}% · natural vegetation {Math.round((p.lc_vegetation ?? 0) * 100)}% · built {Math.round((p.lc_built ?? 0) * 100)}% · bare {Math.round((p.lc_bare ?? 0) * 100)}%</> : NA}
           </Row>
 
-          <Row k="Satellite imagery (Sentinel-2, clearest scene within 5 days)">
+          <Row k="Satellite imagery (Sentinel-2 after / before, dNBR, SWIR hot pixels; Landsat thermal)">
             <ImageryPanel sourceId={p.source_id} />
           </Row>
 

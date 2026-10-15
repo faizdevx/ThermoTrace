@@ -76,6 +76,8 @@ def analyse(
     clip: bool = True,
     with_states: bool = True,
     baseline: baseline_mod.BaselineIndex | None = None,
+    model=None,
+    facilities=None,
 ) -> Analysis:
     if det.empty:
         return Analysis(det, pd.DataFrame(), {"detections": 0, "sources": 0})
@@ -115,6 +117,9 @@ def analyse(
     src["source_id"] = stable_ids(src)
     # compare every source with 365 days of its own facility / 1 km cell history (None -> fields stay empty)
     src = baseline_mod.attach(src, det, baseline, site_index)
+    # trained model as a second opinion next to the rules (None -> columns stay empty, rules remain the answer)
+    from src.ml import live as ml_live
+    src = ml_live.score_sources(src, det, model, facilities)
 
     det = det.merge(src[["cluster", "source_id", "thermal_class"]], on="cluster", how="left")
     summary = {
@@ -125,6 +130,7 @@ def analyse(
         "alerts": int(src.alert_level.notna().sum()),
         "facilities_indexed": 0 if site_index is None else len(site_index),
         "landcover_used": use_landcover,
+        "model_version": None if model is None else model.version,
         "baseline_entities": 0 if baseline is None else len(baseline),
         "baseline_window_end": None if baseline is None else str(baseline.window_end),
         "latest_detection": str(det.acq_datetime.max()),

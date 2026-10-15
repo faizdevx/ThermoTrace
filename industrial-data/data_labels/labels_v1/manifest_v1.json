@@ -1,10 +1,10 @@
 {
   "rule_version": "labels-v1",
-  "created_at": "2026-10-15T14:15:40+00:00",
-  "git_commit": "20a32cb",
+  "created_at": "2026-10-15T16:42:53+00:00",
+  "git_commit": "76ac295",
   "seed": 20261015,
   "unit": "1 km EPSG:6933 cell x 7-day window with >= 1 non-low-confidence VIIRS detection; windows start 2025-10-01 (both satellites in the archive)",
-  "total_labels": 3279,
+  "total_labels": 3281,
   "counts": {
     "agricultural_burning": {
       "incident_test": 0,
@@ -12,7 +12,7 @@
       "train": 804
     },
     "industrial_fire": {
-      "incident_test": 32,
+      "incident_test": 34,
       "test": 0,
       "train": 0
     },
@@ -31,7 +31,7 @@
     "agricultural_burning": 1554,
     "vegetation_fire": 980,
     "industrial_persistent": 713,
-    "industrial_fire": 32
+    "industrial_fire": 34
   },
   "ambiguous_units_dropped": 0,
   "split": {
@@ -98,16 +98,16 @@
     "archive_files": 172,
     "archive_detections": 1564490,
     "facilities_geojson_sha256": "7f0b122c68372ca56638b6784e239cc6877cc91c63f238c603207453208d1282",
-    "incidents_csv_sha256": "6bed1d052f84d1a0c992a926f103f5798de2b73483860898764457d0059b4c87"
+    "incidents_csv_sha256": "7240b8c504d38a23138393a657ab272fec074182feb6f0276c000875112e729d"
   },
   "outputs": {
     "labels_v1.parquet": {
-      "sha256": "aa8e928331bee49d47f7a037afdfb61fe6d9b8cdddb29e9426fe2778cc959f2a",
-      "bytes": 341907
+      "sha256": "4b148372d07a6d2cad5d9c1f619a233f6b65c81010780070bbdaf5f19b5311fb",
+      "bytes": 342419
     },
     "labels_v1.csv.gz": {
-      "sha256": "bb2dd9a4fba61368f4e8f1afb48ff45ec7f5ed8c6fe4e54db354e3b9b70f57f1",
-      "bytes": 205833
+      "sha256": "a5f7b0f923b2b0d97d9643fc70f1461d50b90d1bc23cf81f693fdd7577396ed3",
+      "bytes": 206107
     }
   }
 }

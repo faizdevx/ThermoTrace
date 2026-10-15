@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-10-15T14:14:13+00:00",
+ "generated_at": "2026-10-15T16:41:28+00:00",
  "note": "page texts are not stored in git (publisher copyright); sha256 identifies what was checked",
  "entries": [
   {
@@ -11,8 +11,7 @@
    "matched_place_tokens": [
     "rajavaram",
     "payakaraopeta",
-    "visakhapatnam",
-    "andhra"
+    "visakhapatnam"
    ],
    "matched_facility_tokens": [
     "deccan",
@@ -29,8 +28,7 @@
    "text_sha256": "9a435b22d690f4862bd2d21df97cf4b79ce055ffac2f96f56fb8436192834d6b",
    "matched_place_tokens": [
     "paradip",
-    "jagatsinghpur",
-    "odisha"
+    "jagatsinghpur"
    ],
    "matched_facility_tokens": [
     "paradip",
@@ -49,8 +47,7 @@
    "http_status": 200,
    "text_sha256": "83326ce657736df24445c83569a961e5628eaf99d8dbe07e98530e378a8b6cfd",
    "matched_place_tokens": [
-    "thane",
-    "maharashtra"
+    "thane"
    ],
    "matched_facility_tokens": [
     "acharya",
@@ -70,8 +67,7 @@
    "http_status": 200,
    "text_sha256": "969d5b60e187d624277c443997b8112215fa7ae645677f35b56053769be16375",
    "matched_place_tokens": [
-    "jamnagar",
-    "gujarat"
+    "jamnagar"
    ],
    "matched_facility_tokens": [
     "reliance",
@@ -111,8 +107,7 @@
    "http_status": 200,
    "text_sha256": "35d0a130724d6a37cbd5e10662b7284574e82591f1217ad844a25cb47830103e",
    "matched_place_tokens": [
-    "palghar",
-    "maharashtra"
+    "palghar"
    ],
    "matched_facility_tokens": [
     "novaphene",
@@ -129,8 +124,7 @@
    "text_sha256": "912568c8b783772048758fe2172842bb0888d14a3e5f7e551156ab40409ad1bc",
    "matched_place_tokens": [
     "malur",
-    "kolar",
-    "karnataka"
+    "kolar"
    ],
    "matched_facility_tokens": [
     "banashankari"
@@ -163,9 +157,7 @@
    "text_sha256": "46256086cf7c2fad99d7bd8bd88eea5bae453d10d9f1dff9b5cdb9c8b4852b77",
    "matched_place_tokens": [
     "partapur",
-    "meerut",
-    "uttar",
-    "pradesh"
+    "meerut"
    ],
    "matched_facility_tokens": [],
    "event_word": true,
@@ -179,9 +171,7 @@
    "text_sha256": "e6be9b628b35c13c7a2be9848fb9b1cda3de0f07da69a4c21325d02db9826aad",
    "matched_place_tokens": [
     "panki",
-    "kanpur",
-    "uttar",
-    "pradesh"
+    "kanpur"
    ],
    "matched_facility_tokens": [
     "crimson",
@@ -215,8 +205,7 @@
    "http_status": 403,
    "text_sha256": "8a1a30163d158e6af4c1660f48c9fb51dfbe61da5d926ab83cb8ba8700a9062a",
    "matched_place_tokens": [
-    "naraina",
-    "delhi"
+    "naraina"
    ],
    "matched_facility_tokens": [],
    "event_word": true,
@@ -251,8 +240,7 @@
    "matched_place_tokens": [
     "anaj",
     "mandi",
-    "filmistan",
-    "delhi"
+    "filmistan"
    ],
    "matched_facility_tokens": [
     "warehouse",
@@ -266,9 +254,9 @@
    "url": "https://www.ndtv.com/delhi-news/delhi-battery-warehouse-collapsed-when-fire-fighting-op-was-about-to-end-2157927",
    "method": "browser_read",
    "http_status": 403,
-   "text_sha256": "4b1ba74e314604b3780d1e17c0e1fe5f94110c95078e9e54f38e4b3b914b230d",
+   "text_sha256": "a14ab20bbba5a8cec72a8f84c28787baea0dc10b62edb4a0a53d090c40886a6d",
    "matched_place_tokens": [
-    "delhi"
+    "peeragarhi"
    ],
    "matched_facility_tokens": [
     "battery",
@@ -322,8 +310,7 @@
    "http_status": 200,
    "text_sha256": "2e00f8454f0daccf8d9aad182eb462917d662799bde4594d2c0e5a2ee16e9408",
    "matched_place_tokens": [
-    "ahmedabad",
-    "gujarat"
+    "ahmedabad"
    ],
    "matched_facility_tokens": [
     "nandan",
@@ -340,8 +327,7 @@
    "text_sha256": "7fb60648d70c60a72a287b9d607bc160c6f395b9de5f926075d1285a22bf09ac",
    "matched_place_tokens": [
     "dahej",
-    "bharuch",
-    "gujarat"
+    "bharuch"
    ],
    "matched_facility_tokens": [
     "yashashvi",
@@ -389,15 +375,11 @@
    "method": "register_row",
    "http_status": 200,
    "text_sha256": "4bc55b8bb16409878aa8948e96ae21f0dd13557e6e597c8f1174fc6b31a04f0e",
-   "matched_place_tokens": [
-    "pngrb",
-    "register"
-   ],
+   "matched_place_tokens": [],
    "matched_facility_tokens": [
     "auto",
     "dispensing",
-    "station",
-    "pngrb"
+    "station"
    ],
    "event_word": true,
    "date_ok": true
@@ -424,8 +406,7 @@
    "text_sha256": "17d77ca262fd38f5281266d02c0daaf84a921aba8bbb6968e093902cc82e3154",
    "matched_place_tokens": [
     "vatva",
-    "ahmedabad",
-    "gujarat"
+    "ahmedabad"
    ],
    "matched_facility_tokens": [
     "matangi",
@@ -441,16 +422,12 @@
    "method": "register_row",
    "http_status": 200,
    "text_sha256": "c14866972a999f07034859d24622dafb18b1d82e525ba95802e1624b14b28d48",
-   "matched_place_tokens": [
-    "pngrb",
-    "register"
-   ],
+   "matched_place_tokens": [],
    "matched_facility_tokens": [
     "bpcl",
     "auto",
     "dispensing",
-    "station",
-    "pngrb"
+    "station"
    ],
    "event_word": true,
    "date_ok": true
@@ -480,8 +457,7 @@
    "text_sha256": "19d221b8a824090d13d1fbdbbdd7e36b90da75e855b126a27664effdedaf433e",
    "matched_place_tokens": [
     "kundli",
-    "sonipat",
-    "haryana"
+    "sonipat"
    ],
    "matched_facility_tokens": [],
    "event_word": true,
@@ -494,9 +470,7 @@
    "http_status": 200,
    "text_sha256": "1c5149e84f550456ca3d926791f0d00636c877a265bd371390054fcbe72bb494",
    "matched_place_tokens": [
-    "hapur",
-    "uttar",
-    "pradesh"
+    "hapur"
    ],
    "matched_facility_tokens": [
     "ruhi",
@@ -514,8 +488,7 @@
    "matched_place_tokens": [
     "mundegaon",
     "igatpuri",
-    "nashik",
-    "maharashtra"
+    "nashik"
    ],
    "matched_facility_tokens": [
     "jindal",
@@ -532,9 +505,7 @@
    "http_status": 200,
    "text_sha256": "2d1264c4ec8da359f17d11dd7fb8227ed9eadbf44973c52a88ea4b8522f142eb",
    "matched_place_tokens": [
-    "tirupati",
-    "andhra",
-    "pradesh"
+    "tirupati"
    ],
    "matched_facility_tokens": [
     "foxlink",
@@ -551,8 +522,7 @@
    "text_sha256": "8837f04ad2f34957e74c7fe7bbc5693cc0b5db152ce0be7ad8b2a6584524f0ae",
    "matched_place_tokens": [
     "numaligarh",
-    "golaghat",
-    "assam"
+    "golaghat"
    ],
    "matched_facility_tokens": [
     "numaligarh",
@@ -571,8 +541,7 @@
    "text_sha256": "f5751fe0bdbb82c627942a5fc8eb2583ef5fd1317aa34da94857940d400e845c",
    "matched_place_tokens": [
     "sachin",
-    "surat",
-    "gujarat"
+    "surat"
    ],
    "matched_facility_tokens": [
     "aether",
@@ -590,9 +559,7 @@
    "matched_place_tokens": [
     "jhadmajri",
     "solan",
-    "baddi",
-    "himachal",
-    "pradesh"
+    "baddi"
    ],
    "matched_facility_tokens": [],
    "event_word": true,
@@ -606,8 +573,7 @@
    "text_sha256": "40cd8124572bad01d2d58b2e1fccd72140d36729cfabcd781f3b4620ff9c0035",
    "matched_place_tokens": [
     "barauni",
-    "begusarai",
-    "bihar"
+    "begusarai"
    ],
    "matched_facility_tokens": [
     "barauni",
@@ -627,8 +593,7 @@
    "matched_place_tokens": [
     "pawane",
     "navi",
-    "mumbai",
-    "maharashtra"
+    "mumbai"
    ],
    "matched_facility_tokens": [
     "navbharat",
@@ -645,8 +610,7 @@
    "text_sha256": "5bd94efbf689653f6e468f86caa10553587697eaec4f1f276ea25abed26814c1",
    "matched_place_tokens": [
     "dombivli",
-    "thane",
-    "maharashtra"
+    "thane"
    ],
    "matched_facility_tokens": [
     "amudan"
@@ -662,8 +626,7 @@
    "text_sha256": "ca0ee8efcd473b6bbd9ca7c3d424430660f23f5523ba0af56dd238e138bffacb",
    "matched_place_tokens": [
     "dombivli",
-    "thane",
-    "maharashtra"
+    "thane"
    ],
    "matched_facility_tokens": [
     "malde",
@@ -682,9 +645,7 @@
    "text_sha256": "9cb899e30533dab3a8e6e7d24a91ddaaced3dd0775d8db83e654b07806a38304",
    "matched_place_tokens": [
     "rania",
-    "kanpur",
-    "dehat",
-    "pradesh"
+    "kanpur"
    ],
    "matched_facility_tokens": [
     "poly",
@@ -695,25 +656,34 @@
   },
   {
    "incident_id": "IN-039",
-   "url": "https://www.reuters.com/world/india/fire-disrupts-operations-tata-electronics-iphone-plant-india-sources-say-2024-09-28/",
-   "method": "http_fetch",
+   "url": "https://www.deccanherald.com/india/tamil-nadu/major-fire-at-tata-electronics-facility-near-tamil-nadus-hosur-three-hospitalised-3210773",
+   "method": "http_fetch_alternative_source",
    "http_status": 401,
-   "text_sha256": "a9ebb5cd81133b125fbfe517f1180dfb919c541929737f752ad85bbd4b2d7aa5",
-   "matched_place_tokens": [],
-   "matched_facility_tokens": [],
-   "event_word": false,
-   "date_ok": false
+   "text_sha256": "07fc8b050502a4cf222cb140edc11fceee450b813cddf6f37e9871e9b4f8ab16",
+   "matched_place_tokens": [
+    "hosur"
+   ],
+   "matched_facility_tokens": [
+    "tata",
+    "electronics"
+   ],
+   "event_word": true,
+   "date_ok": true
   },
   {
    "incident_id": "IN-040",
-   "url": "https://www.reuters.com/world/india/indias-sigachi-factory-fire-death-toll-rises-34-ani-reports-2025-07-01/",
-   "method": "http_fetch",
+   "url": "https://www.deccanherald.com/india/telangana/death-toll-in-telangana-pharma-plant-explosion-tragedy-rises-to-15-sangareddy-district-blast-3608530",
+   "method": "http_fetch_alternative_source",
    "http_status": 401,
-   "text_sha256": "a9ebb5cd81133b125fbfe517f1180dfb919c541929737f752ad85bbd4b2d7aa5",
-   "matched_place_tokens": [],
-   "matched_facility_tokens": [],
-   "event_word": false,
-   "date_ok": false
+   "text_sha256": "69d2087aca46d27a33a0ee3a68b84fe5abce89c14c486d0f4d738dfc9b7a06f5",
+   "matched_place_tokens": [
+    "sangareddy"
+   ],
+   "matched_facility_tokens": [
+    "sigachi"
+   ],
+   "event_word": true,
+   "date_ok": true
   }
  ]
 }

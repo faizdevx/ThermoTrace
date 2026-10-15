@@ -68,6 +68,18 @@ def load_baseline(sites: SiteIndex | None) -> baseline_mod.BaselineIndex | None:
     return index
 
 
+def load_model_assets() -> tuple:
+    """(model, facilities table) for the second opinion; (None, None) keeps the rules as the only answer."""
+    from src.ml import live
+    model = live.load_model()
+    if model is None:
+        return None, None
+    dsn = os.getenv("DATABASE_URL")
+    dsn = dsn.replace("postgresql+psycopg2://", "postgresql://") if dsn and os.getenv("THERMAL_SITES_FROM_DB", "").lower() in ("1", "true", "yes") else None
+    fac = live.facilities_frame(env_path("THERMAL_FACILITIES_GEOJSON", "data/facilities/facilities.geojson"), dsn)
+    return model, fac
+
+
 def refresh_once(out_dir: Path, window_days: int, use_landcover: bool = True, interval_seconds: int = 1800,
                  force: bool = False) -> dict:
     """One cycle. Publishes (snapshot + PostGIS + notifications) ONLY when FIRMS delivered new detections,
@@ -91,8 +103,11 @@ def refresh_once(out_dir: Path, window_days: int, use_landcover: bool = True, in
         store.save_history(out_dir, merged)
         span_days = max(int((merged.acq_datetime.max() - merged.acq_datetime.min()).days) + 1, 1)
         sites = load_sites()
+        model, fac_frame = load_model_assets()
         result = pipeline.analyse(merged, sites, window_days=min(span_days, window_days),
-                                  use_landcover=use_landcover, cache_dir=out_dir, baseline=load_baseline(sites))
+                                  use_landcover=use_landcover, cache_dir=out_dir, baseline=load_baseline(sites),
+                                  model=model, facilities=fac_frame)
+        _attach_imagery(result, out_dir)
         store.write_snapshot(out_dir, result)
         run_id = None
         dsn = os.getenv("DATABASE_URL")
@@ -100,6 +115,8 @@ def refresh_once(out_dir: Path, window_days: int, use_landcover: bool = True, in
             try:
                 run_id = store.persist_postgis(dsn.replace("postgresql+psycopg2://", "postgresql://"), result)
                 _maybe_refresh_baseline(dsn.replace("postgresql+psycopg2://", "postgresql://"), out_dir)
+                from src.ml import live as ml_live
+                store.register_model(dsn.replace("postgresql+psycopg2://", "postgresql://"), ml_live.model_path().with_name("metrics.json"))
             except Exception as exc:  # noqa: BLE001 - snapshot is still valid; report, do not hide
                 logger.error("PostGIS persist failed: %s", exc)
                 store.write_status(out_dir, db_error=str(exc)[:300])
@@ -122,6 +139,22 @@ def refresh_once(out_dir: Path, window_days: int, use_landcover: bool = True, in
         store.write_status(out_dir, state="error", last_error=str(exc)[:500], consecutive_failures=failures)
         logger.exception("thermal refresh failed (%d in a row)", failures)
         raise
+
+
+def _attach_imagery(result, out_dir: Path) -> None:
+    """Sentinel-2 / Landsat evidence for alerts and industrial candidates (cached; a few new ones per cycle)."""
+    if os.getenv("THERMAL_IMAGERY", "true").lower() not in ("1", "true", "yes") or result.sources.empty:
+        return
+    try:
+        from src.imagery import core, enrich
+        cache_dir = env_path("THERMAL_IMAGERY_DIR", str(out_dir.parent / "imagery"))
+        result.sources, stats = enrich.enrich_sources(
+            result.sources, cache_dir, per_cycle=int(os.getenv("THERMAL_IMAGERY_PER_CYCLE", "4")),
+            budget_seconds=float(os.getenv("THERMAL_IMAGERY_BUDGET_SECONDS", "240")))
+        result.summary["imagery"] = stats
+        logger.info("imagery: %s", stats)
+    except Exception as exc:  # noqa: BLE001 - never lose a cycle over evidence
+        logger.warning("imagery enrichment skipped: %s", exc)
 
 
 def _maybe_refresh_baseline(dsn: str, out_dir: Path, every_hours: float = 24.0) -> None:

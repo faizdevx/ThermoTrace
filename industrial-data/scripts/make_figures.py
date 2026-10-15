@@ -1,6 +1,6 @@
 """Build the README figures from real result files (nothing is typed in by hand).
 
-Inputs : docs/EVALUATION.md (written by train_classifier.py), data/incidents/incident_firms_match.csv,
+Inputs : data/incidents/incident_firms_match_v2.csv, data/labels/labels_v1.parquet,
          data/thermal/out/thermal_sources.csv (written by run_thermal.py)
 Outputs: docs/images/*.png and docs/images/findings.json
 Needs matplotlib (docs-only; not a runtime dependency).
@@ -31,69 +31,6 @@ COLORS = {"industrial_persistent": "#dc2626", "industrial_fire_candidate": "#f97
           "vegetation_fire": "#16a34a", "unmapped_persistent": "#7c3aed", "other": "#64748b"}
 plt.rcParams.update({"font.size": 10, "axes.spines.top": False, "axes.spines.right": False, "figure.dpi": 130})
 
-
-def parse_evaluation() -> dict:
-    text = (ROOT / "docs" / "EVALUATION.md").read_text(encoding="utf-8")
-    sections = re.split(r"\n## ", text)
-    out = {}
-    for sec in sections:
-        key = ("rules" if sec.startswith("Rule classifier") else "model" if sec.startswith("Gradient-boosted model (")
-               else "thermal_only" if "thermal-behaviour features only" in sec.split("\n")[0] else None)
-        if key is None:
-            continue
-        f1, cm = {}, []
-        for line in sec.split("\n"):
-            m = re.match(r"\| (\w+) \| ([\d.]+) \| ([\d.]+) \| ([\d.]+) \| (\d+) \|", line)
-            if m and m.group(1) in CLASSES:
-                f1[m.group(1)] = {"p": float(m.group(2)), "r": float(m.group(3)), "f1": float(m.group(4)), "n": int(m.group(5))}
-            m = re.match(r"\| \*\*(\w+)\*\* \| (.+) \|$", line)
-            if m and m.group(1) in CLASSES:
-                cm.append([int(x) for x in m.group(2).split("|")])
-        mf = re.search(r"macro-F1 \*\*([\d.]+)\*\*, accuracy \*\*([\d.]+)\*\*", sec)
-        out[key] = {"per_class": f1, "cm": np.array(cm), "macro_f1": float(mf.group(1)), "accuracy": float(mf.group(2))}
-    return out
-
-
-def fig_f1(ev):
-    fig, ax = plt.subplots(figsize=(9, 4.2))
-    x = np.arange(len(CLASSES))
-    w = 0.27
-    series = [("Rule classifier", "rules", "#94a3b8"), ("Gradient-boosted model", "model", "#0f766e"),
-              ("Thermal behaviour only", "thermal_only", "#f59e0b")]
-    for i, (label, key, color) in enumerate(series):
-        vals = [ev[key]["per_class"][c]["f1"] for c in CLASSES]
-        bars = ax.bar(x + (i - 1) * w, vals, w, label=f"{label} (macro-F1 {ev[key]['macro_f1']:.2f})", color=color)
-        for b, v in zip(bars, vals):
-            ax.text(b.get_x() + b.get_width() / 2, v + 0.01, f"{v:.2f}", ha="center", fontsize=7.5)
-    ax.set_xticks(x, [SHORT[c] for c in CLASSES])
-    ax.set_ylim(0, 1.08)
-    ax.set_ylabel("F1 on held-out states and months")
-    ax.set_title("Per-class F1: rules vs trained model vs thermal-only features")
-    ax.legend(loc="lower right", fontsize=8.5)
-    fig.tight_layout()
-    fig.savefig(OUT / "f1_by_class.png")
-    plt.close(fig)
-
-
-def fig_confusion(ev):
-    fig, axes = plt.subplots(1, 2, figsize=(11.5, 4.6))
-    for ax, key, title in zip(axes, ("rules", "model"), ("Rule classifier", "Gradient-boosted model")):
-        cm = ev[key]["cm"]
-        norm = cm / cm.sum(axis=1, keepdims=True).clip(min=1)
-        ax.imshow(norm, cmap="Blues", vmin=0, vmax=1)
-        for i in range(cm.shape[0]):
-            for j in range(cm.shape[1]):
-                ax.text(j, i, f"{cm[i, j]}", ha="center", va="center", fontsize=8,
-                        color="white" if norm[i, j] > 0.5 else "#0f172a")
-        ax.set_xticks(range(len(PRED)), [SHORT[c] for c in PRED], fontsize=7.5)
-        ax.set_yticks(range(len(CLASSES)), [SHORT[c].replace("\n", " ") for c in CLASSES], fontsize=8)
-        ax.set_title(f"{title}  (accuracy {ev[key]['accuracy']:.2f})")
-        ax.set_xlabel("predicted")
-        ax.spines[:].set_visible(False)
-    axes[0].set_ylabel("labelled class (rows are normalised, cells show counts)")
-    fig.tight_layout()
-    fig.savefig(OUT / "confusion_matrices.png")
-    plt.close(fig)
 
 
 def fig_incidents(df):
@@ -309,9 +246,6 @@ def fig_labels():
 
 
 def main():
-    ev = parse_evaluation()
-    fig_f1(ev)
-    fig_confusion(ev)
     v2 = ROOT / "data" / "incidents" / "incident_firms_match_v2.csv"      # 32 verified locations (labels-v1)
     inc = pd.read_csv(v2 if v2.exists() else ROOT / "data" / "incidents" / "incident_firms_match.csv")
     fig_incidents(inc)
@@ -329,9 +263,6 @@ def main():
         "industrial_persistent_by_state": ind.state.value_counts().head(8).to_dict(),
         "industrial_persistent_by_kind": ind.site_kind.value_counts().to_dict(),
         "incident_status": inc.status.value_counts().to_dict(),
-        "eval": {k: {"macro_f1": v["macro_f1"], "accuracy": v["accuracy"]} for k, v in ev.items()},
-        "rules_recall": {c: ev["rules"]["per_class"][c]["r"] for c in CLASSES},
-        "model_recall": {c: ev["model"]["per_class"][c]["r"] for c in CLASSES},
     }
     (OUT / "findings.json").write_text(json.dumps(summ, indent=2, default=str), encoding="utf-8")
     print(json.dumps(summ, indent=2, default=str))

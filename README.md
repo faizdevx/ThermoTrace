@@ -53,20 +53,22 @@ _Dashboard captured 2026-10-15 from the Docker stack (PostGIS, API, thermal work
 
 _Clicking a facility shows where it comes from. Tirora TPP (3,300 MW, coal) is one facility built from six OpenStreetMap records and one WRI Global Power Plant Database record, each listed with its source id, distance to the anchor and licence; the blue outline is the OpenStreetMap footprint of the plant._
 
-![Sentinel-2 true-colour and SWIR chips for a persistent industrial thermal source](docs/images/sentinel2_chip.png)
+![Satellite imagery panel: Sentinel-2 after/before chips, dNBR and Landsat thermal for a source at Bhilai steel plant](docs/images/source_imagery.png)
 
-_Clicking a thermal source shows a Sentinel-2 chip pair from the clearest scene within 5 days (here a coal mine in Odisha: the SWIR composite shows glowing, burning coal seams)._
+_Clicking a thermal source shows Sentinel-2 L2A chips (3 x 3 km, true colour and SWIR B12/B11/B8A) from the clearest scene within 5 days of the detection and a before scene from the same tile 2-40 days earlier, with scene id and cloud %, the dNBR burn index, the SWIR hot-pixel count and a Landsat 8/9 surface-temperature check. Here: Bhilai steel plant, dNBR p95 +0.36 over 51 % of the chip, no SWIR hot pixels, Landsat 12 K above the chip median._
 
 ## Findings
 
 All figures are produced by `industrial-data/scripts/make_figures.py` from the real result files. Read the caveats: labels are weak and rule-derived, incident locations are partly coarse, and one snapshot of one week is not a trend.
 
-**1. A trained model fixes the rules' main weakness.** On held-out states and months the gradient-boosted model reaches macro-F1 0.87 against 0.63 for the rules. The rules call 559 of 1,022 persistent industrial windows "fire candidate" (recall 0.44) and send 151 of 531 persistent unmapped sources to "other" (recall 0.37); the model recovers them (recall 0.83 and 0.89) at the price of slightly lower agricultural recall (0.93 vs 0.96).
+**1. The trained model beats the rules on held-out regions and months - against rule-derived labels.** On `labels-v1` (test = held-out states AND windows from 2026-04-01, 1,021 units) the gradient-boosted model reaches macro-F1 **0.993** (95 % CI 0.987-0.998) against **0.809** (0.763-0.848) for the rules. The rules' weak point is persistent industrial heat: recall 0.30 (they call it "fire candidate"), the model 1.00. Full report: [docs/EVALUATION.md](docs/EVALUATION.md).
 
-![Per-class F1 for rules, model and thermal-only features](docs/images/f1_by_class.png)
-![Confusion matrices, rules vs model](docs/images/confusion_matrices.png)
+![Per-class F1: rules, model and the model blind to the rule inputs](docs/images/eval_f1_ablation.png)
+![Confusion matrices, rules vs model](docs/images/eval_confusion.png)
 
-**2. Context, not satellite behaviour alone, separates the classes.** Thermal-behaviour features alone (persistence, night share, power, footprint) score macro-F1 0.33; adding facility proximity and land cover gives 0.87. FIRMS tells you where heat is, the facility map and land cover tell you why. This is also a caution: those context features define the labels, so the score is agreement with the labelling rules.
+**2. Context, not satellite behaviour alone, separates the classes.** A model that sees only thermal behaviour (persistence, night share, power, footprint) scores macro-F1 0.633, below the rules; facility proximity and land cover carry the rest. Since those same inputs define the labels, 0.993 is agreement with the labelling rules, not real-world accuracy. The independent check is the verified incidents: of 19 evaluated so far (34 verified, the rest still downloading from the rate-limited FIRMS archive), VIIRS saw 11; at 0.25 false alarms per day (held-out crop/forest units) the model flags all 11, the rules 10. 8 produced no detection, which no thermal method can recover.
+
+![Incident recall at fixed false-alarm rates](docs/images/eval_incidents.png)
 
 **3. Radiative power does not separate industrial from agricultural fires.** Median peak power per source is 3.1 MW for persistent industrial, 3.2 MW for crop burning and 3.4 MW for vegetation fire; night share and persistence do the separating (median night share 1.0 for the industrial classes, 0.0 for crop and forest fires).
 
@@ -74,13 +76,15 @@ All figures are produced by `industrial-data/scripts/make_figures.py` from the r
 
 **4. Persistent "industrial" heat in this pilot is mostly coal.** Of 152 persistent industrial sources in the 2026-10-02 to 2026-10-08 run, 86 sit on OSM mining/quarry features and 42 on thermal power plants (only 2 refineries, 2 steel plants, 3 cement works). By state: Jharkhand 33, Odisha 28, Chhattisgarh 16, Maharashtra 14, Rajasthan 10. Burning coal seams and overburden dumps are a heat source a facility list alone would not explain.
 
-**5. Satellite evidence for documented incidents is thin and depends on where the incident sits.** 32 of the 40 documented industrial fires are verified (source text confirms event, place and date; location resolved to an OSM object: 11 at the plant itself, 11 in an industrial estate, 10 at a named locality). Against VIIRS S-NPP + NOAA-20: 13 show a detection above the place's own baseline, 7 sit on a site that is routinely hot (a refinery fire is not separable from baseline at 375 m), 12 show nothing. At the 11 plant-level incidents every event window contains a detection, but only 5 are above baseline and 6 are indistinguishable from routine heat; the 12 "no detection" cases are all estate- or locality-level, where the heat source is a single small unit inside a 2-3 km circle. The two strongest signals are Vatva GIDC (62 MW) and Igatpuri / Jindal Poly Films (54 MW).
+**5. Satellite evidence for documented incidents is thin and depends on where the incident sits.** 34 of the 40 documented industrial fires are verified (source text confirms event, place and date; location resolved to an OSM object: 12 at the plant itself, 11 in an industrial estate, 11 at a named locality). Against VIIRS S-NPP + NOAA-20: 13 show a detection above the place's own baseline, 7 sit on a site that is routinely hot (a refinery fire is not separable from baseline at 375 m), 14 show nothing. Of the 12 plant-level incidents 11 have a detection in the event window, but only 5 are above baseline and 6 are indistinguishable from routine heat; 13 of the 14 "no detection" cases are estate- or locality-level, where the heat source is a single small unit inside a 2-3 km circle. The two strongest signals are Vatva GIDC (62 MW) and Igatpuri / Jindal Poly Films (54 MW).
 
 ![Incident matching results](docs/images/incident_matching.png)
 
-**6. Honest limits of the numbers.** One train/test split, one seed, S-NPP only, no confidence intervals; "industrial fire candidate" means an episodic detection at a facility, not a confirmed fire; the trained model is not yet in the live pipeline.
+**6. Satellite imagery confirms burn scars, not industrial building fires.** dNBR (Sentinel-2, before vs after) is high for crop and forest burning (median p95 0.38 and 0.34 on a 180-unit sample) and low for persistent industrial sites (0.17); a fire inside a plant is too small and too short to leave a 10-20 m burn scar (Vatva GIDC, 62 MW on VIIRS: dNBR 0.02). Crop dNBR also includes harvest, which lowers NBR without any fire. SWIR hot pixels behave the other way (median 94 per chip at industrial sites, 13 crop, 0 forest), but most of those are furnaces, flares and coal seams, i.e. routine heat. As model features they add nothing to the full model (grouped 5-fold CV macro-F1 0.994 with and without) and +0.06 to the thermal-only model (0.484 to 0.547) on 180 units without confidence intervals, so the live model does **not** use them: imagery is computed for a few candidates per cycle only, and a feature missing for most sources would skew training against serving. They are shown as evidence and reasons. Script: `industrial-data/scripts/imagery_feature_experiment.py`.
 
-Regenerate: `python industrial-data/scripts/train_classifier.py && python industrial-data/scripts/make_figures.py` (matplotlib is only needed for the figures); the dashboard screenshot comes from `industrial-data/scripts/capture_dashboard.py` against a running app.
+**7. Honest limits of the numbers.** Rule-derived labels; incidents are a small sample (single digits per location tier); the threshold in the incident table is a near-zero probability because calibrated P(industrial) for crop/forest units is essentially zero; "industrial fire candidate" means an episodic detection at a facility, not a confirmed fire.
+
+Regenerate: `python industrial-data/scripts/evaluate.py [--refresh-features] && python industrial-data/scripts/make_figures.py` (matplotlib is only needed for the figures); screenshots come from `industrial-data/scripts/capture_dashboard.py` against the Vite dev server (`npm run dev`) with the API running.
 
 ## Project status
 
@@ -90,7 +94,9 @@ Regenerate: `python industrial-data/scripts/train_classifier.py && python indust
 | 1 | Facility database with provenance: OSM + WRI GPPD + GEM + VIIRS Nightfire, PostGIS, API, map layer | **OSM + WRI + VIIRS Nightfire flare sites done; GEM not loaded** (form behind a Cloudflare bot check, must be submitted by a person) |
 | 2 | 12-month FIRMS baseline per facility and per 1 km cell (S-NPP + NOAA-20), z-score of today against it, shown for every source | **done** (see [Baseline](#baseline-what-is-normal-for-this-place)) |
 | 3 | Labelled evaluation set: 3,247 weak rule labels (3 classes) + 32 verified incidents, region/time split, checksummed manifest | **done** with two documented deviations (no MCD64A1 confirmation, no GEM) - see [Labelled evaluation set](#labelled-evaluation-set) |
-| 4-9 | model in the live pipeline + evaluation on these labels, imagery as features, alerting, replay demo, judge-facing dashboard | planned - see [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) |
+| 4 | Trained model (gradient-boosted trees, calibrated, Shapley reasons, `model_version`) in the live pipeline, rules kept as baseline/fallback, `docs/EVALUATION.md`, `/api/thermal/model` | **done**: model beats rules on held-out data (0.993 vs 0.809 macro-F1, against rule-derived labels); incident check runs on 19 of 34 verified incidents while the rest download |
+| 5 | Sentinel-2 L2A after/before chips (true colour + SWIR), dNBR, SWIR hot pixels, Landsat 8/9 TIRS check, cached, `/api/thermal/sources/{id}/imagery`, dNBR in the reasons | **done**; imagery tested as model features and **not** adopted (see Finding 6) |
+| 6-9 | alerting, replay demo, judge-facing dashboard | planned - see [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) |
 
 ## Baseline: what is normal for this place
 
@@ -162,7 +168,7 @@ and run `docker compose --profile bootstrap run --rm facilities` to finish it.
 ## Labelled evaluation set
 
 Without labels there is no accuracy number. `labels-v1` (full rules, split, leakage policy and deviations in
-[docs/LABELS.md](docs/LABELS.md)) holds **3,279 labels**: one label is a 1 km cell x 7-day window with at least one
+[docs/LABELS.md](docs/LABELS.md)) holds **3,281 labels**: one label is a 1 km cell x 7-day window with at least one
 VIIRS detection, or one verified incident.
 
 ![labels-v1: labels per class and split, and where they are](docs/images/label_set.png)
@@ -172,7 +178,7 @@ VIIRS detection, or one verified incident.
 | `industrial_persistent` | within 1 km of a WRI / flare-site facility that was active on >= 20 % of 365 days | 610 | 103 |
 | `agricultural_burning` | WorldCover cropland >= 70 %, Punjab / Haryana / west UP, Oct-Nov or Apr-May, no facility within 3 km, episodic | 804 | 750 |
 | `vegetation_fire` | WorldCover tree + shrub >= 70 %, no facility within 3 km, episodic | 812 | 168 |
-| `industrial_fire` | verified documented incident (source text + OSM location) | - | 32 |
+| `industrial_fire` | verified documented incident (source text + OSM location) | - | 34 |
 
 * **Split by region and by time, never random:** train = held-in regions before 2026-04-01; test = held-out regions
   (Andhra Pradesh, Chhattisgarh, Maharashtra, Punjab) from 2026-04-01. Incidents are test-only.
@@ -181,7 +187,7 @@ VIIRS detection, or one verified incident.
   `manifest_v1.json` (sha256 of every file, inputs, parameters): `python -m src.labels.cli verify`.
 * **Leakage:** the weak rules read the same things a classifier reads (facility proximity, land cover, season, 365-day
   activity). A score on those three classes measures agreement with the rules; report it next to a model that is
-  blind to the rule inputs. The 32 incidents are the only labels independent of them.
+  blind to the rule inputs. The 34 incidents are the only labels independent of them.
 * **Not met as planned:** vegetation fires are not confirmed by MODIS MCD64A1 burned area (needs an Earthdata login);
   Global Energy Monitor trackers are not loaded, so `industrial_persistent` rests on 36 power-plant and flare-site
   facilities; `industrial_persistent` test support is 103 windows and `agricultural_burning` test is one state.
@@ -201,7 +207,7 @@ python -m src.labels.cli verify
 |---|---|
 | FIRMS ingestion (S-NPP, NOAA-20, NOAA-21 VIIRS NRT; public CSV or `MAP_KEY` API) | working, run against real data |
 | Clustering into thermal sources, facility matching, land-cover sampling, explainable classifier | working, 24 unit tests |
-| Thermal layer on the map, class filters, alert flag, source detail panel with reasons + detection timeline, Sentinel-2 true-colour/SWIR chip (clearest scene within 5 days, < 30 % cloud, `/api/thermal/sources/{id}/imagery`), CSV/GeoJSON export | working (frontend tests + browser check of the map layer) |
+| Thermal layer on the map, class filters, alert flag, source detail panel with reasons + detection timeline, Sentinel-2 after/before chips + dNBR + SWIR hot pixels + Landsat thermal (`/api/thermal/sources/{id}/imagery`), CSV/GeoJSON export | working (frontend tests + browser check of the map layer) |
 | Snapshot **and** PostGIS storage (`thermal_sources`, `thermal_detections`, `thermal_runs`) | PostGIS path run against a real PostGIS container |
 | OSM industrial sites: baseline import + incremental replication (osm2pgsql) with durable checkpoint, locking, backoff, revisions | 23 lifecycle tests; baseline imported (below); catching up to the live diff feed **not observed to completion** |
 | Merged facility database (OSM 19,497 records + WRI GPPD 397 plants + 196 World Bank / VIIRS Nightfire flare sites -> 12,762 facilities, 248 confirmed by two sources, 580 with OSM footprints) with per-record source id, licence and attribution; `facilities` / `facility_sources` tables, `/api/facilities` (PostGIS or files), map layer with provenance popup | 18 unit tests, 5 API tests (files), 4 API tests against PostGIS, 3 popup tests; PostGIS load run against a real PostGIS container |
@@ -226,23 +232,16 @@ python -m src.labels.cli verify
   The persistent-industrial list is plausible: it is dominated by Odisha/Jharkhand coal mines, plus e.g. Tata Steel Meramandali, Jindal Raigarh and Jojobera power stations - night-time detections on 7 of 7 days. The rule-based classes were then checked against the incident list and a trained model (below).
 * **Documented industrial-fire incidents vs NASA FIRMS** (40 public-source incidents, 2016-2025, matched against the VIIRS S-NPP/NOAA-20 archive; script `industrial-data/scripts/match_incidents.py`, locations in `industrial-data/data_labels/incident_locations.py`). Event window = date -1 / +2 days, baseline = 60 to 8 days before, radius = location uncertainty + 0.5 km, "routine" = active on >= 30 % of baseline days. Query parameters are stored with the results.
 
-  | Outcome | All 40 | Of the 32 verified: plant / estate / locality |
+  | Outcome | All 40 | Of the 34 verified: plant / estate / locality |
   |---|---|---|
-  | Not assessable (not verified or no location, see [docs/LABELS.md](docs/LABELS.md)) | 8 | - |
+  | Not assessable (not verified or no location, see [docs/LABELS.md](docs/LABELS.md)) | 6 | - |
   | Anomalous VIIRS detection near the incident (quiet baseline) | 13 | 5 / 4 / 4 |
-  | No detection | 12 | 0 / 7 / 5 |
+  | No detection | 14 | 1 / 7 / 6 |
   | Detection but the site is routinely hot (cannot attribute) | 7 | 6 / 0 / 1 |
 
   A detection above baseline is evidence that the place was hot at that time, not proof that it was the reported fire; detections are mostly 0.5 to 9 MW, two are above 50 MW (Vatva GIDC 62.4 MW, Igatpuri / Jindal Poly Films 54.1 MW).
-* **Trained classifier vs rules** (`docs/EVALUATION.md`, `industrial-data/scripts/train_classifier.py`). Gradient-boosted trees (scikit-learn `HistGradientBoostingClassifier`) on 7-day source windows from the S-NPP archive (2025-07 to 2026-10, 562k detections in India). Strict hold-out: test = 11 held-out states AND windows from 2026-04-01; train = other states and earlier windows (4,382 train / 2,318 test windows).
-
-  | | macro-F1 | accuracy |
-  |---|---|---|
-  | Rule classifier | 0.634 | 0.587 |
-  | Gradient-boosted model | **0.872** | **0.885** |
-  | Gradient-boosted, thermal-behaviour features only | 0.325 | 0.449 |
-
-  Per-class F1 rules -> model: industrial persistent 0.61 -> 0.90, industrial fire candidate 0.38 -> 0.66, persistent no mapped facility 0.52 -> 0.93, agricultural burning 0.88 -> 0.93, vegetation fire 0.79 -> 0.93. **These labels are weak and rule-derived, not ground truth:** they come from each ~2 km cell's long-run activity over the archive, OSM facility proximity and WorldCover land cover, and the last two are also model inputs, so the scores measure agreement with the labelling rules on unseen regions/months, not real-world accuracy. The thermal-only score (0.33) shows satellite behaviour alone barely separates the classes. "Industrial fire candidate" means *episodic detection at a facility*, not a confirmed fire. One split, one seed, S-NPP only, no confidence intervals. The trained model is not yet wired into the live pipeline; the live app still uses the rule classifier.
+* **Trained classifier vs rules**: see [Finding 1](#findings) and [docs/EVALUATION.md](docs/EVALUATION.md) (`industrial-data/scripts/evaluate.py`). The live worker runs the model (`model_version` on every source, rule class kept alongside as baseline and fallback).
+* **Satellite imagery** (Phase 5, `industrial-data/src/imagery/`): Sentinel-2 L2A from the Element84 Earth Search STAC (no key), Landsat C2 L2 surface temperature from Microsoft Planetary Computer (anonymous token). The worker computes up to 4 candidates per cycle (alerts first) inside a 240 s budget and caches results on disk (shared with the API); any other source is computed on demand in ~20-30 s. Measured 2026-10-15 in Docker: 3 candidates computed in one cycle, one with a clear after/before pair (dNBR +0.36), two with no scene under 30 % cloud within 5 days, which the panel and the reasons say plainly.
 * **Real-time chain, measured once on 2026-10-09 (single observation, not a benchmark):** the thermal worker polls FIRMS every 10 min and publishes only when new detections arrive. For a batch of 40 new detections the FIRMS file was published 07:45:42 UTC and committed to PostGIS at 07:48:57 (**195 s**); the `thermal` SSE event reached the API stream ~0.02 s after the commit. Worst case is the poll interval plus ~17 s of processing; the satellite-to-file delay (~3 h) is upstream and not under our control. The OSM worker checks Geofabrik every 5 min and was caught up (cursor = source head), but Geofabrik regional diffs are published about **once a day**, so a new-OSM-edit-to-screen lag of hours is inherent to that source; no OSM diff was applied during this check. Browser repaint delay was not measured.
 * The lifecycle tests assert the mechanics (notification only after commit, checkpoint never advances on failure, unchanged data publishes nothing); they are not latency benchmarks.
 
@@ -377,15 +376,16 @@ TEST_DATABASE_URL=postgresql://user:pw@localhost:5432/postgres python -m pytest 
 cd industrial-gis/frontend && npx tsc --noEmit && npm test && npm run build
 ```
 
-Results on the development machine (2026-10-15): `industrial-data/tests` 297 passed with PostGIS available (includes 6 label-rule tests, the labels-table test and the baseline SQL-vs-pandas parity tests); API synthetic suite 62 passed; API against PostGIS 34 passed; frontend `tsc` clean, vitest 37 passed. GitHub Actions: the pushes to `main` completed with `success`.
+Results on the development machine (2026-10-15): `industrial-data/tests` 292 passed, 28 skipped without PostGIS (includes the ML and imagery tests); API synthetic suite 64 passed; frontend `tsc` clean, vitest 46 passed. GitHub Actions: the pushes to `main` completed with `success`.
 
 ## Configuration
 
-See `.env.example`. Key variables: `POSTGRES_*`, `ALLOWED_ORIGINS`, `ADMIN_TOKEN`, `OSM_REGION`, `OSM_POLL_INTERVAL_SECONDS`, `OSM_FRESHNESS_TARGET_SECONDS`, `FIRMS_MAP_KEY` (optional), `THERMAL_INTERVAL_SECONDS` (default 600), `THERMAL_FACILITIES_GEOJSON`, `FACILITIES_DIR`, `FACILITIES_BACKEND` (`auto`/`files`/`postgis`), `THERMAL_WINDOW_DAYS`, `VITE_TILE_URL`. Never commit `.env`.
+See `.env.example`. Key variables: `POSTGRES_*`, `ALLOWED_ORIGINS`, `ADMIN_TOKEN`, `OSM_REGION`, `OSM_POLL_INTERVAL_SECONDS`, `OSM_FRESHNESS_TARGET_SECONDS`, `FIRMS_MAP_KEY` (optional), `THERMAL_INTERVAL_SECONDS` (default 600), `THERMAL_FACILITIES_GEOJSON`, `FACILITIES_DIR`, `FACILITIES_BACKEND` (`auto`/`files`/`postgis`), `THERMAL_WINDOW_DAYS`, `THERMAL_IMAGERY` (on by default), `THERMAL_IMAGERY_DIR`, `THERMAL_IMAGERY_PER_CYCLE` (default 4), `THERMAL_IMAGERY_BUDGET_SECONDS` (default 240), `VITE_TILE_URL`. Never commit `.env`.
 
 ## Known limitations
 
-* The live classifier is rule-based with expert priors. A trained model beats it on a held-out split, but against **weak rule-derived labels, not ground truth**; incident evidence covers 32 of 40 documented incidents (8 could not be verified or located), 10 of them only to a named locality, and is mostly near the detection floor. Agricultural vs. other low-power vegetation fires and industrial vs. unmapped industry depend on OSM completeness.
+* The live classifier is a model trained on **weak rule-derived labels, not ground truth** (the rules stay as baseline and fallback); incident evidence covers 34 of 40 documented incidents (6 could not be verified or located), 10 of them only to a named locality, and is mostly near the detection floor. Agricultural vs. other low-power vegetation fires and industrial vs. unmapped industry depend on OSM completeness.
+* Sentinel-2 imagery is often unavailable (cloud, especially in the monsoon) and confirms burn scars, not fires inside buildings; "no scene" is reported as such.
 * VIIRS is 375 m and ~3 h behind real time; a short-lived industrial event can fall between overpasses. Persistence needs history: the first run only has the 7 days FIRMS publishes (history accumulates afterwards).
 * Facility matching uses a radius around a representative point (the equivalent-area radius of the OSM outline where one is stored, else the outline's bounding box, else a kind default); large plants can be missed or over-matched, and merging records widens the circle (on one FIRMS window, 8 of 5,384 crop/vegetation sources became "fire candidate" for that reason).
 * Global Energy Monitor trackers (steel, coal mines, cement, oil and gas plants) are not loaded: the download form is protected by a Cloudflare bot check that a person has to complete. Their loader is tested on fixtures, not on the real files.

@@ -5,6 +5,9 @@ WORKDIR /srv
 COPY industrial-gis/backend/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 COPY industrial-gis/backend/ /srv/backend/
+# imagery core is shared with the worker (one implementation of the scene / index logic)
+COPY industrial-data/src/imagery/ /srv/src/imagery/
+RUN touch /srv/src/__init__.py
 RUN useradd --create-home --uid 10001 thermo
 USER thermo
 EXPOSE 8000

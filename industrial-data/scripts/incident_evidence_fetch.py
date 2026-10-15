@@ -3,13 +3,14 @@
 Writes data/labels/evidence/<id>.txt|.pdf and evidence_fetch.json. Pages behind a bot wall or a JavaScript check were
 read in a normal browser instead and their text saved by hand under the same names (see docs/LABELS.md).
 """
-import json, re, sys, time, hashlib
+import json
+import os, re, sys, time, hashlib
 from pathlib import Path
 import pandas as pd, requests
 from html import unescape
 
 OUT = Path("data/labels/evidence"); OUT.mkdir(parents=True, exist_ok=True)
-df = pd.read_excel(r"D:\india_industrial_fire_incidents_40.xlsx", sheet_name="India Incidents")
+df = pd.read_excel(os.getenv("INCIDENT_WORKBOOK", r"D:\india_industrial_fire_incidents_40.xlsx"), sheet_name="India Incidents")
 UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36",
       "Accept-Language": "en"}
 def text_of(html: str) -> str:

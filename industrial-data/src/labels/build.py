@@ -59,7 +59,7 @@ def window_start(idx: int) -> date:
     return R.FIRST_WINDOW + timedelta(days=int(idx) * R.WINDOW_DAYS)
 
 
-def choose_held_out(units: pd.DataFrame, min_support: int = 150) -> list[str]:
+def choose_held_out(units: pd.DataFrame, min_support: int = 150, max_per_facility: int | None = None) -> list[str]:
     """Pick the held-out regions greedily so every class has train AND test support (deterministic).
 
     train support of a class = its labelled units in held-in states before TEST_FROM; test support = its labelled
@@ -73,8 +73,14 @@ def choose_held_out(units: pd.DataFrame, min_support: int = 150) -> list[str]:
     for cls, col in flags.items():
         sel = units[units[col]]
         l = late.loc[sel.index]
-        pre[cls] = sel[~l].groupby("state").size()
-        post[cls] = sel[l].groupby("state").size()
+        if cls == "industrial_persistent" and max_per_facility and "authoritative_facility_id" in sel:
+            # support that survives the per-facility cap applied later (a plant with 300 windows counts as 30)
+            def capped(frame):
+                return frame.groupby(["state", "authoritative_facility_id"]).size().clip(upper=max_per_facility).groupby(level=0).sum()
+            pre[cls], post[cls] = capped(sel[~l]), capped(sel[l])
+        else:
+            pre[cls] = sel[~l].groupby("state").size()
+            post[cls] = sel[l].groupby("state").size()
     states = sorted(units.state.dropna().unique())
 
     def score(held: set[str]) -> tuple[int, int]:
@@ -257,7 +263,7 @@ def build(archive_dirs: list[Path], facilities_geojson: Path, incidents_csv: Pat
         units["lc_woody"] = units.cell_key.map(m.lc_woody)
 
     units = apply_rules(units)
-    held = choose_held_out(units)
+    held = choose_held_out(units, max_per_facility=max_per_facility)
     units["split"] = assign_split(units, held)
 
     # ---- one label per unit; a unit satisfying two rules is ambiguous and dropped (never guessed)

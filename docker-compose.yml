@@ -47,6 +47,7 @@ services:
       <<: *db-env
       DATA_MODE: postgis
       FACILITIES_DIR: /data/thermal/facilities
+      THERMAL_IMAGERY_DIR: /data/thermal/imagery
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8080,http://localhost:5173}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-}
       THERMAL_DATA_DIR: /data/thermal/live
@@ -99,6 +100,8 @@ services:
       THERMAL_SITES_FROM_DB: "1"            # match against the PostGIS facilities table when it is built
       THERMAL_SITES_GEOJSON: /data/thermal/sites_india.geojson
       THERMAL_INTERVAL_SECONDS: ${THERMAL_INTERVAL_SECONDS:-600}
+      THERMAL_IMAGERY_DIR: /data/thermal/imagery
+      THERMAL_IMAGERY_PER_CYCLE: ${THERMAL_IMAGERY_PER_CYCLE:-4}
       THERMAL_WINDOW_DAYS: ${THERMAL_WINDOW_DAYS:-14}
       FIRMS_MAP_KEY: ${FIRMS_MAP_KEY:-}
     volumes:

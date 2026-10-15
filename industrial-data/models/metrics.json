@@ -1,0 +1,464 @@
+{
+  "model_version": "thermal-gbm-2801a2c3-20261015",
+  "generated_at": "2026-10-15T17:43:23+00:00",
+  "classes": [
+    "industrial_persistent",
+    "agricultural_burning",
+    "vegetation_fire"
+  ],
+  "features": [
+    "n_detections",
+    "n_days",
+    "frp_max",
+    "frp_mean",
+    "frp_total",
+    "frp_p90",
+    "night_fraction",
+    "ti4_mean",
+    "ti4_max",
+    "ti_diff_mean",
+    "scan_mean",
+    "track_mean",
+    "extent_m",
+    "high_conf_fraction",
+    "n_satellites",
+    "baseline_active_fraction",
+    "frp_z",
+    "facility_dist_m",
+    "facility_within",
+    "facility_source_count",
+    "facility_radius_m",
+    "authoritative_dist_m",
+    "kind_brick_kiln",
+    "kind_cement",
+    "kind_chemical_fertilizer",
+    "kind_factory_generic",
+    "kind_gas_flare",
+    "kind_landfill",
+    "kind_mining_quarry",
+    "kind_power_thermal",
+    "kind_refinery_petrochem",
+    "kind_steel_metal",
+    "lc_crop",
+    "lc_woody",
+    "lc_vegetation",
+    "lc_built",
+    "lc_bare",
+    "lc_water",
+    "month_sin",
+    "month_cos",
+    "lat_abs"
+  ],
+  "label_set": "labels-v1",
+  "split": {
+    "train": 2226,
+    "test": 1021,
+    "test_from": "2026-04-01"
+  },
+  "results": {
+    "rules": {
+      "macro_f1": 0.8094593988024034,
+      "accuracy": 0.9177277179236043,
+      "per_class": {
+        "industrial_persistent": {
+          "p": 1.0,
+          "r": 0.30097087378640774,
+          "f1": 0.4626865671641791,
+          "n": 103
+        },
+        "agricultural_burning": {
+          "p": 0.9973262032085561,
+          "r": 0.9946666666666667,
+          "f1": 0.9959946595460614,
+          "n": 750
+        },
+        "vegetation_fire": {
+          "p": 0.9876543209876543,
+          "r": 0.9523809523809523,
+          "f1": 0.9696969696969697,
+          "n": 168
+        }
+      }
+    },
+    "model": {
+      "macro_f1": 0.9927807486631016,
+      "accuracy": 0.9941234084231146,
+      "per_class": {
+        "industrial_persistent": {
+          "p": 1.0,
+          "r": 1.0,
+          "f1": 1.0,
+          "n": 103
+        },
+        "agricultural_burning": {
+          "p": 0.9986595174262735,
+          "r": 0.9933333333333333,
+          "f1": 0.9959893048128342,
+          "n": 750
+        },
+        "vegetation_fire": {
+          "p": 0.9709302325581395,
+          "r": 0.9940476190476191,
+          "f1": 0.9823529411764705,
+          "n": 168
+        }
+      },
+      "ece_calibrated": 0.004487969595338839,
+      "ece_raw": 0.0029972283719779252,
+      "macro_f1_uncalibrated": 0.9927807486631016
+    },
+    "blind": {
+      "macro_f1": 0.6334461390143665,
+      "accuracy": 0.7678746327130265,
+      "n_features": 15,
+      "per_class": {
+        "industrial_persistent": {
+          "p": 0.6233766233766234,
+          "r": 0.9320388349514563,
+          "f1": 0.7470817120622568,
+          "n": 103
+        },
+        "agricultural_burning": {
+          "p": 0.8847736625514403,
+          "r": 0.86,
+          "f1": 0.8722109533468559,
+          "n": 750
+        },
+        "vegetation_fire": {
+          "p": 0.3115942028985507,
+          "r": 0.25595238095238093,
+          "f1": 0.28104575163398693,
+          "n": 168
+        }
+      }
+    },
+    "bootstrap": {
+      "ci": {
+        "model": [
+          0.9865740755907203,
+          0.9977082490458085
+        ],
+        "rules": [
+          0.7630781264477059,
+          0.8475494799744201
+        ],
+        "blind": [
+          0.5890274560913131,
+          0.6679712614425042
+        ]
+      },
+      "diff_ci": [
+        0.14616261236182262,
+        0.2294942748732203
+      ],
+      "diff_names": [
+        "model",
+        "rules"
+      ]
+    },
+    "bootstrap_blind_vs_rules": {
+      "ci": {
+        "blind": [
+          0.5890274560913131,
+          0.6679712614425042
+        ],
+        "rules": [
+          0.7630781264477059,
+          0.8475494799744201
+        ]
+      },
+      "diff_ci": [
+        -0.23930902773589482,
+        -0.124047537690319
+      ],
+      "diff_names": [
+        "blind",
+        "rules"
+      ]
+    }
+  },
+  "ablations": {
+    "without thermal": {
+      "macro_f1": 0.9927807486631016,
+      "accuracy": 0.9941234084231146,
+      "n_features": 26,
+      "per_class": {
+        "industrial_persistent": {
+          "p": 1.0,
+          "r": 1.0,
+          "f1": 1.0,
+          "n": 103
+        },
+        "agricultural_burning": {
+          "p": 0.9986595174262735,
+          "r": 0.9933333333333333,
+          "f1": 0.9959893048128342,
+          "n": 750
+        },
+        "vegetation_fire": {
+          "p": 0.9709302325581395,
+          "r": 0.9940476190476191,
+          "f1": 0.9823529411764705,
+          "n": 168
+        }
+      }
+    },
+    "without baseline": {
+      "macro_f1": 0.9927807486631016,
+      "accuracy": 0.9941234084231146,
+      "n_features": 39,
+      "per_class": {
+        "industrial_persistent": {
+          "p": 1.0,
+          "r": 1.0,
+          "f1": 1.0,
+          "n": 103
+        },
+        "agricultural_burning": {
+          "p": 0.9986595174262735,
+          "r": 0.9933333333333333,
+          "f1": 0.9959893048128342,
+          "n": 750
+        },
+        "vegetation_fire": {
+          "p": 0.9709302325581395,
+          "r": 0.9940476190476191,
+          "f1": 0.9823529411764705,
+          "n": 168
+        }
+      }
+    },
+    "without facility": {
+      "macro_f1": 0.9927807486631016,
+      "accuracy": 0.9941234084231146,
+      "n_features": 26,
+      "per_class": {
+        "industrial_persistent": {
+          "p": 1.0,
+          "r": 1.0,
+          "f1": 1.0,
+          "n": 103
+        },
+        "agricultural_burning": {
+          "p": 0.9986595174262735,
+          "r": 0.9933333333333333,
+          "f1": 0.9959893048128342,
+          "n": 750
+        },
+        "vegetation_fire": {
+          "p": 0.9709302325581395,
+          "r": 0.9940476190476191,
+          "f1": 0.9823529411764705,
+          "n": 168
+        }
+      }
+    },
+    "without landcover": {
+      "macro_f1": 0.4557150166906265,
+      "accuracy": 0.2850146914789422,
+      "n_features": 35,
+      "per_class": {
+        "industrial_persistent": {
+          "p": 1.0,
+          "r": 1.0,
+          "f1": 1.0,
+          "n": 103
+        },
+        "agricultural_burning": {
+          "p": 1.0,
+          "r": 0.02666666666666667,
+          "f1": 0.05194805194805195,
+          "n": 750
+        },
+        "vegetation_fire": {
+          "p": 0.1870824053452116,
+          "r": 1.0,
+          "f1": 0.3151969981238274,
+          "n": 168
+        }
+      }
+    },
+    "without season_region": {
+      "macro_f1": 0.9963655295419498,
+      "accuracy": 0.9970617042115573,
+      "n_features": 38,
+      "per_class": {
+        "industrial_persistent": {
+          "p": 1.0,
+          "r": 1.0,
+          "f1": 1.0,
+          "n": 103
+        },
+        "agricultural_burning": {
+          "p": 0.9986648865153538,
+          "r": 0.9973333333333333,
+          "f1": 0.9979986657771848,
+          "n": 750
+        },
+        "vegetation_fire": {
+          "p": 0.9881656804733728,
+          "r": 0.9940476190476191,
+          "f1": 0.9910979228486647,
+          "n": 168
+        }
+      }
+    },
+    "thermal behaviour only (blind)": {
+      "macro_f1": 0.6334461390143665,
+      "accuracy": 0.7678746327130265,
+      "n_features": 15,
+      "per_class": {
+        "industrial_persistent": {
+          "p": 0.6233766233766234,
+          "r": 0.9320388349514563,
+          "f1": 0.7470817120622568,
+          "n": 103
+        },
+        "agricultural_burning": {
+          "p": 0.8847736625514403,
+          "r": 0.86,
+          "f1": 0.8722109533468559,
+          "n": 750
+        },
+        "vegetation_fire": {
+          "p": 0.3115942028985507,
+          "r": 0.25595238095238093,
+          "f1": 0.28104575163398693,
+          "n": 168
+        }
+      }
+    },
+    "thermal + baseline": {
+      "macro_f1": 0.7801829414300081,
+      "accuracy": 0.8530852105778648,
+      "n_features": 17,
+      "per_class": {
+        "industrial_persistent": {
+          "p": 1.0,
+          "r": 1.0,
+          "f1": 1.0,
+          "n": 103
+        },
+        "agricultural_burning": {
+          "p": 0.8658536585365854,
+          "r": 0.9466666666666667,
+          "f1": 0.9044585987261147,
+          "n": 750
+        },
+        "vegetation_fire": {
+          "p": 0.5918367346938775,
+          "r": 0.34523809523809523,
+          "f1": 0.43609022556390975,
+          "n": 168
+        }
+      }
+    }
+  },
+  "incidents": {
+    "n_incidents": 19,
+    "n_with_detection": 11,
+    "test_days": 203,
+    "negatives": 918,
+    "negatives_per_day": 4.522167487684729,
+    "auc_industrial_vs_agri_veg": 1.0,
+    "operating_points": [
+      {
+        "false_alarms_per_day": 0.25,
+        "threshold": 1.0064748807489355e-06,
+        "recall_of_detected": 1.0,
+        "recall_of_all": 0.5789473684210527,
+        "units_flagged": 45
+      },
+      {
+        "false_alarms_per_day": 0.5,
+        "threshold": 1.0007159426536983e-06,
+        "recall_of_detected": 1.0,
+        "recall_of_all": 0.5789473684210527,
+        "units_flagged": 90
+      },
+      {
+        "false_alarms_per_day": 1.0,
+        "threshold": 1.0001769103566179e-06,
+        "recall_of_detected": 1.0,
+        "recall_of_all": 0.5789473684210527,
+        "units_flagged": 164
+      },
+      {
+        "false_alarms_per_day": 2.0,
+        "threshold": 1.0001769103566179e-06,
+        "recall_of_detected": 1.0,
+        "recall_of_all": 0.5789473684210527,
+        "units_flagged": 164
+      }
+    ],
+    "rules": {
+      "recall_of_detected": 0.9090909090909091,
+      "recall_of_all": 0.5263157894736842,
+      "false_alarms_per_day": 0.0,
+      "units_flagged": 0
+    },
+    "by_tier": {
+      "facility": {
+        "n": 8,
+        "model_p_median": 0.9999980000040002,
+        "model_hit_at_0.5": 8,
+        "rules_hit": 8
+      },
+      "industrial_area": {
+        "n": 1,
+        "model_p_median": 0.9214272105979288,
+        "model_hit_at_0.5": 1,
+        "rules_hit": 1
+      },
+      "locality": {
+        "n": 2,
+        "model_p_median": 0.8171455954319267,
+        "model_hit_at_0.5": 2,
+        "rules_hit": 1
+      }
+    }
+  },
+  "permutation_importance_top10": [
+    [
+      "lc_vegetation",
+      0.11460340361700154
+    ],
+    [
+      "facility_dist_m",
+      0.10310830177040593
+    ],
+    [
+      "lc_crop",
+      0.017790785482299065
+    ],
+    [
+      "baseline_active_fraction",
+      0.004637296897150378
+    ],
+    [
+      "authoritative_dist_m",
+      0.0005221884401659382
+    ],
+    [
+      "n_detections",
+      0.0
+    ],
+    [
+      "n_days",
+      0.0
+    ],
+    [
+      "frp_max",
+      0.0
+    ],
+    [
+      "frp_mean",
+      0.0
+    ],
+    [
+      "frp_total",
+      0.0
+    ]
+  ],
+  "leakage_note": "weak labels are produced by rules that read facility proximity, land cover, season and baseline; the blind row removes all of them"
+}

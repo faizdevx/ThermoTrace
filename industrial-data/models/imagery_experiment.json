@@ -1,0 +1,36 @@
+{
+  "units": 180,
+  "with_scene": 175,
+  "with_dnbr": 162,
+  "per_class": {
+    "agricultural_burning": 60,
+    "industrial_persistent": 60,
+    "vegetation_fire": 60
+  },
+  "cv": "GroupKFold(5) by state",
+  "median_by_class": {
+    "agricultural_burning": {
+      "s2_dnbr_p95": 0.377,
+      "s2_dnbr_mean": 0.101,
+      "s2_burned_fraction": 0.45,
+      "s2_hot_pixels": 13.0
+    },
+    "industrial_persistent": {
+      "s2_dnbr_p95": 0.166,
+      "s2_dnbr_mean": 0.025,
+      "s2_burned_fraction": 0.124,
+      "s2_hot_pixels": 94.0
+    },
+    "vegetation_fire": {
+      "s2_dnbr_p95": 0.335,
+      "s2_dnbr_mean": 0.093,
+      "s2_burned_fraction": 0.392,
+      "s2_hot_pixels": 0.0
+    }
+  },
+  "full_without_imagery_macro_f1": 0.994,
+  "full_with_imagery_macro_f1": 0.994,
+  "blind_without_imagery_macro_f1": 0.484,
+  "blind_with_imagery_macro_f1": 0.547,
+  "imagery_only_macro_f1": 0.453
+}

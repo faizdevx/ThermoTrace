@@ -145,6 +145,28 @@ def main():
             cdp.shot(OUT / "source_baseline.png")
             print("saved source_baseline.png for", src["name"] or src["id"])
 
+        # --- satellite imagery: a source whose Sentinel-2 chips + dNBR were computed by the worker ------------
+        img = cdp.js("""fetch('/api/thermal/sources?limit=5000').then(r => r.json()).then(d => {
+            const f = d.features.filter(x => x.properties.imagery_available && x.properties.imagery_dnbr_p95 != null)
+                .sort((a, b) => b.properties.imagery_dnbr_p95 - a.properties.imagery_dnbr_p95)[0];
+            return f ? {lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], id: f.properties.source_id} : null; })""")
+        if img:
+            cdp.js("(() => { document.querySelector('.leaflet-popup-close-button')?.click(); return 0; })()")
+            cdp.js(f"(() => {{ window.__thermotraceMap.setView([{img['lat']}, {img['lon']}], 11, {{animate: false}}); return 0; }})()")
+            time.sleep(4)
+            pt = cdp.js(f"""(() => {{ const m = window.__thermotraceMap; const p = m.latLngToContainerPoint([{img['lat']}, {img['lon']}]);
+                const r = m.getContainer().getBoundingClientRect(); return {{x: r.left + p.x, y: r.top + p.y}}; }})()""")
+            cdp.call("Input.dispatchMouseEvent", type="mouseMoved", x=pt["x"] - 6, y=pt["y"] - 6)
+            cdp.call("Input.dispatchMouseEvent", type="mouseMoved", x=pt["x"], y=pt["y"])
+            time.sleep(0.5)
+            for kind in ("mousePressed", "mouseReleased"):
+                cdp.call("Input.dispatchMouseEvent", type=kind, x=pt["x"], y=pt["y"], button="left", clickCount=1)
+            wait(cdp, "!!document.querySelector('[data-testid=imagery-dnbr]')", 90, "imagery panel")
+            cdp.js("(() => { document.querySelector('[data-testid=imagery-panels]')?.scrollIntoView({block: 'center'}); return 0; })()")
+            time.sleep(3)
+            cdp.shot(OUT / "source_imagery.png")
+            print("saved source_imagery.png for", img["id"])
+
     finally:
         proc.kill()
 

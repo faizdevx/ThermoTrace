@@ -25,6 +25,9 @@ LOCATIONS: dict[str, tuple[str, float, float, float, str, str]] = {
     "IN-026": ("way/335591575", 22.0429, 88.1050, 2.5, "facility", "IOCL Haldia Refinery"),
     "IN-031": ("way/69366299", 26.5824, 93.7872, 2.5, "facility", "Numaligarh Refinery"),
     "IN-034": ("way/66665052", 25.4314, 86.0601, 2.5, "facility", "Barauni Oil Refinery; the ETP is inside the complex"),
+    "IN-039": ("way/1493007778", 12.5670, 77.9507, 2.5, "facility",
+               "Tata Electronics: two OSM works (way/1493007778 Uddanapalli, way/1493006314 Athipalli Road) 3.3 km apart; the "
+               "source does not say which unit, so the circle covers both"),
     # --- industrial-area tier ------------------------------------------------------------------------------------
     "IN-007": ("way/1076391762", 12.9799, 77.9184, 3.0, "industrial_area", "Malur Industrial Area (OSM polygon)"),
     "IN-012": ("relation/3691014", 28.6321, 77.1371, 1.5, "industrial_area", "Naraina Industrial Area I (OSM relation)"),
@@ -50,6 +53,16 @@ LOCATIONS: dict[str, tuple[str, float, float, float, str, str]] = {
     "IN-028": ("node/7284417624", 28.6343, 77.6490, 3.0, "locality", "Dhaulana, Hapur (town node; the source names Dhaulana industrial area)"),
     "IN-029": ("node/3225070526", 19.7724, 73.6629, 3.0, "locality", "Mundegaon, Igatpuri (village node); the source names the Jindal Poly Films plant there"),
     "IN-038": ("node/7944298565", 26.4352, 80.3228, 3.0, "locality", "Rania, Kanpur Dehat (station node)"),
+    "IN-040": ("node/5605051989", 17.5279, 78.1900, 3.0, "locality", "Pashamylaram, Sangareddy (village node); the Sigachi plant is not mapped in OSM"),
+}
+
+# The workbook's source for these is Reuters, which is behind a bot wall; an open report of the same event is used
+# instead (the workbook URL is kept as source_url_original).
+ALTERNATIVE_SOURCES: dict[str, tuple[str, str]] = {
+    "IN-039": ("https://www.deccanherald.com/india/tamil-nadu/major-fire-at-tata-electronics-facility-near-tamil-nadus-hosur-three-hospitalised-3210773",
+               "Deccan Herald"),
+    "IN-040": ("https://www.deccanherald.com/india/telangana/death-toll-in-telangana-pharma-plant-explosion-tragedy-rises-to-15-sangareddy-district-blast-3608530",
+               "Deccan Herald"),
 }
 
 # Incidents whose source confirms the event but whose place cannot be resolved to a point with the tools available
@@ -61,8 +74,6 @@ UNRESOLVED: dict[str, str] = {
     "IN-030": "source says Tirupati district; the plant's village is not named",
     "IN-033": "Jhadmajri (Baddi belt) not found in OSM by name",
     "IN-035": "Pawane MIDC not found in OSM by name",
-    "IN-039": "source (Reuters) not retrievable: bot wall",
-    "IN-040": "source (Reuters) not retrievable: bot wall",
 }
 
 # --- compatibility with scripts/match_incidents.py ---------------------------------------------------------------

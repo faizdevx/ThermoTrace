@@ -84,3 +84,16 @@ def test_rule_text_lists_inputs_for_every_class():
     assert set(R.RULES) == set(R.CLASSES)
     for c in R.CLASSES:
         assert R.RULES[c]["inputs"] and R.forbidden_inputs(c) == R.RULES[c]["inputs"]
+
+
+def test_held_out_choice_counts_persistent_support_after_the_facility_cap():
+    rows = []
+    # state A: one plant with 400 windows (caps to 30); state B: 20 plants x 10 windows (200 after the cap)
+    for state, plants, per in (("A", 1, 400), ("B", 20, 10), ("C", 20, 10)):
+        for f in range(plants):
+            for j in range(per):
+                rows.append({"state": state, "authoritative_facility_id": f"{state}{f}",
+                             "window_start": date(2025, 11, 1) if j % 2 == 0 else date(2026, 5, 1),
+                             "is_industrial_persistent": True, "is_agricultural_burning": False, "is_vegetation_fire": False})
+    held = B.choose_held_out(pd.DataFrame(rows), min_support=50, max_per_facility=30)
+    assert "A" not in held                 # holding out the single big plant would leave ~15 capped test windows

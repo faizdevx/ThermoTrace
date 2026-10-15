@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,9 +17,9 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "industrial-data"))
-from data_labels.incident_locations import LOCATIONS, UNRESOLVED  # noqa: E402
+from data_labels.incident_locations import ALTERNATIVE_SOURCES, LOCATIONS, UNRESOLVED  # noqa: E402
 
-XLSX = Path(r"D:\india_industrial_fire_incidents_40.xlsx")
+XLSX = Path(os.getenv("INCIDENT_WORKBOOK", r"D:\india_industrial_fire_incidents_40.xlsx"))
 EVID = ROOT / "data" / "labels" / "evidence"
 CHECK = json.loads((ROOT / "data" / "labels" / "evidence_check.json").read_text(encoding="utf-8"))
 FETCH = {r["incident_id"]: r for r in json.loads((ROOT / "data" / "labels" / "evidence_fetch.json").read_text(encoding="utf-8"))}
@@ -54,14 +55,18 @@ def main() -> None:
         rows.append({
             "incident_id": iid, "event_date": pd.Timestamp(r["Event Date"]).date().isoformat(),
             "facility": r["Facility / Company"], "locality": r["Locality"], "state": r["State / UT"], "industry": r["Industry"],
-            "incident_type": r["Incident Type"], "source_url": r["Source URL"], "source_publisher": r["Source Publisher"],
+            "incident_type": r["Incident Type"],
+            "source_url": ALTERNATIVE_SOURCES.get(iid, (r["Source URL"],))[0],
+            "source_publisher": ALTERNATIVE_SOURCES[iid][1] if iid in ALTERNATIVE_SOURCES else r["Source Publisher"],
+            "source_url_original": r["Source URL"],
             "evidence_type": r["Evidence Type"], "source_confirms_event_place_date": confirmed,
             "verified": bool(confirmed and loc),
             "lat": loc[1] if loc else None, "lon": loc[2] if loc else None, "radius_km": loc[3] if loc else None,
             "location_basis": loc[4] if loc else None, "osm_ref": loc[0] if loc else None,
             "location_note": loc[5] if loc else UNRESOLVED.get(iid),
         })
-        index.append({"incident_id": iid, "url": r["Source URL"], "method": method(iid) if txt.exists() else "not_retrievable",
+        index.append({"incident_id": iid, "url": ALTERNATIVE_SOURCES.get(iid, (r["Source URL"],))[0],
+                      "method": ("http_fetch_alternative_source" if iid in ALTERNATIVE_SOURCES else method(iid)) if txt.exists() else "not_retrievable",
                       "http_status": FETCH.get(iid, {}).get("status"), "text_sha256": sha,
                       "matched_place_tokens": c.get("place_hits", [])[:6], "matched_facility_tokens": c.get("facility_hits", [])[:6],
                       "event_word": c.get("event_word", False), "date_ok": c.get("date_ok", False)})

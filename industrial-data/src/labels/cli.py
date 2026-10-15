@@ -28,7 +28,7 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--publish", default="data_labels/labels_v1", help="copy parquet, csv.gz and manifest here (committed; small)")
     b.add_argument("--dsn", default=os.getenv("DATABASE_URL"))
     v = sub.add_parser("verify")
-    v.add_argument("--out", default="../data/labels")
+    v.add_argument("--out", default="data_labels/labels_v1", help="folder with the manifest (default: the committed copy)")
     v.add_argument("--manifest", default="manifest_v1.json")
     args = ap.parse_args(argv)
 

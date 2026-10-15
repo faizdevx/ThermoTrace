@@ -251,6 +251,21 @@ export interface ThermalProperties {
   frp_today?: number | null;
   frp_today_date?: string | null;
   frp_z?: number | null;
+  /** trained model's second opinion next to the rule class (absent when no model is deployed) */
+  model_version?: string | null;
+  model_class?: 'industrial_persistent' | 'agricultural_burning' | 'vegetation_fire' | null;
+  model_probability?: number | null;
+  model_probabilities?: Record<string, number> | null;
+  model_reasons?: string[] | null;
+  /** satellite evidence persisted by the worker (alerts / industrial candidates) */
+  imagery_available?: boolean | null;
+  imagery_scene_id?: string | null;
+  imagery_scene_time?: string | null;
+  imagery_cloud_percent?: number | null;
+  imagery_dnbr_p95?: number | null;
+  imagery_burned_fraction?: number | null;
+  imagery_swir_hot_pixels?: number | null;
+  imagery_landsat_excess_k?: number | null;
   detections?: ThermalDetection[];
 }
 
@@ -288,20 +303,42 @@ export interface ThermalFilters {
   state?: string;
 }
 
+export interface ThermalImageryScene {
+  id: string;
+  datetime: string;
+  cloud_cover_percent: number;
+  offset_days?: number | null;
+  platform?: string | null;
+  mgrs_tile?: string | null;
+  chip_cloud_fraction?: number | null;
+  gap_days?: number | null;
+  same_tile?: boolean | null;
+}
+
+export interface ThermalImageryPair {
+  true_colour: string;
+  swir: string;
+}
+
 export interface ThermalImagery {
   available: boolean;
   reason: string | null;
   window_km: number;
+  /** earlier single-scene shape (kept so a cached older response still renders) */
   true_colour?: string;
   swir?: string;
-  scene?: {
-    id: string;
-    datetime: string;
-    cloud_cover_percent: number;
-    offset_days: number;
-    platform?: string | null;
-    mgrs_tile?: string | null;
-  };
+  scene?: ThermalImageryScene;
+  before_scene?: ThermalImageryScene | null;
+  images?: { after?: ThermalImageryPair; before?: ThermalImageryPair };
+  indices?: {
+    nbr_before: number; nbr_after: number; dnbr_mean: number; dnbr_p95: number; burned_fraction: number;
+    valid_fraction: number; severity: string;
+  } | null;
+  hot_pixels?: { count: number; fraction: number; rule: string } | null;
+  landsat?: {
+    available: boolean; reason?: string | null; window_days?: number; source?: string;
+    scene?: ThermalImageryScene; st_max_k?: number; st_p99_k?: number; st_median_k?: number; st_excess_k?: number;
+  } | null;
   composites?: { true_colour: string; swir: string };
   attribution?: string;
 }

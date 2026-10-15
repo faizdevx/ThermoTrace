@@ -74,7 +74,7 @@ All figures are produced by `industrial-data/scripts/make_figures.py` from the r
 
 **4. Persistent "industrial" heat in this pilot is mostly coal.** Of 152 persistent industrial sources in the 2026-10-02 to 2026-10-08 run, 86 sit on OSM mining/quarry features and 42 on thermal power plants (only 2 refineries, 2 steel plants, 3 cement works). By state: Jharkhand 33, Odisha 28, Chhattisgarh 16, Maharashtra 14, Rajasthan 10. Burning coal seams and overburden dumps are a heat source a facility list alone would not explain.
 
-**5. Satellite evidence for documented incidents is thin and depends on location quality.** Of 40 documented industrial fires, 17 could not be located well enough to test. Of the 23 tested, 9 show an anomalous VIIRS detection, 6 sit on a site that is routinely hot (a refinery fire is not separable from baseline at 375 m), and 8 show nothing. The two strongest signals (Vatva GIDC 62 MW, Igatpuri/Jindal Poly Films 54 MW) are industrial-estate or town-level locations; facility-level matches are mostly under 7 MW. The bottleneck is verified facility coordinates, not the satellite archive.
+**5. Satellite evidence for documented incidents is thin and depends on where the incident sits.** 32 of the 40 documented industrial fires are verified (source text confirms event, place and date; location resolved to an OSM object: 11 at the plant itself, 11 in an industrial estate, 10 at a named locality). Against VIIRS S-NPP + NOAA-20: 13 show a detection above the place's own baseline, 7 sit on a site that is routinely hot (a refinery fire is not separable from baseline at 375 m), 12 show nothing. At the 11 plant-level incidents every event window contains a detection, but only 5 are above baseline and 6 are indistinguishable from routine heat; the 12 "no detection" cases are all estate- or locality-level, where the heat source is a single small unit inside a 2-3 km circle. The two strongest signals are Vatva GIDC (62 MW) and Igatpuri / Jindal Poly Films (54 MW).
 
 ![Incident matching results](docs/images/incident_matching.png)
 
@@ -89,7 +89,8 @@ Regenerate: `python industrial-data/scripts/train_classifier.py && python indust
 | 0 | Clean foundation: legacy tests green, thermal layer is the default map, honest README badges | **done** |
 | 1 | Facility database with provenance: OSM + WRI GPPD + GEM + VIIRS Nightfire, PostGIS, API, map layer | **OSM + WRI + VIIRS Nightfire flare sites done; GEM not loaded** (form behind a Cloudflare bot check, must be submitted by a person) |
 | 2 | 12-month FIRMS baseline per facility and per 1 km cell (S-NPP + NOAA-20), z-score of today against it, shown for every source | **done** (see [Baseline](#baseline-what-is-normal-for-this-place)) |
-| 3-9 | labelled evaluation set, model in the live pipeline, imagery as features, alerting, replay demo, judge-facing dashboard | planned - see [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) |
+| 3 | Labelled evaluation set: 3,247 weak rule labels (3 classes) + 32 verified incidents, region/time split, checksummed manifest | **done** with two documented deviations (no MCD64A1 confirmation, no GEM) - see [Labelled evaluation set](#labelled-evaluation-set) |
+| 4-9 | model in the live pipeline + evaluation on these labels, imagery as features, alerting, replay demo, judge-facing dashboard | planned - see [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) |
 
 ## Baseline: what is normal for this place
 
@@ -142,7 +143,7 @@ Result on the 2026-10-14 run (5,418 current sources, 365 covered days, 651,824 b
 | 0 | Frontend Docker build | **pass** | `docker compose build frontend` built; the nginx image serves the UI and proxies `/api` on :8080 (screenshot above). nginx now re-resolves the API container, so recreating it no longer leaves a 502 |
 | 0 | CI green | **pass** | the GitHub Actions runs for the last six pushes to `main` finished with `success` (API, PostGIS and frontend jobs) |
 | 0 | PostGIS API suite | **pass** | 34 passed, 0 failed (`backend/tests/postgis`, throw-away database) |
-| 0 | Legacy pipeline tests | **pass** | `industrial-data/tests`: 290 passed, 0 skipped with PostGIS available |
+| 0 | Legacy pipeline tests | **pass** | `industrial-data/tests`: 297 passed, 0 skipped with PostGIS available |
 | 0 | Facilities in PostGIS, matching reads them | **pass** | table `facilities`; the Docker worker (`THERMAL_SITES_FROM_DB=1`) loads 12,762 rows from it. The GeoJSON file remains a fallback for the no-database mode only |
 | 0 | OSM pilot layer behind a toggle | **pass** | off by default, map shows thermal sources + facilities |
 | 0 | Badges match the code | **pass** | Redis, Celery, MapLibre, Plotly, SciPy removed |
@@ -157,6 +158,42 @@ Result on the 2026-10-14 run (5,418 current sources, 365 covered days, 651,824 b
 Phase 1 is therefore complete for three of the four sources (OSM, WRI, VIIRS Nightfire flare sites) and **incomplete for
 GEM**: its download form ends in a bot check that only a person can pass. Drop the GEM files into `data/facilities/raw/`
 and run `docker compose --profile bootstrap run --rm facilities` to finish it.
+
+## Labelled evaluation set
+
+Without labels there is no accuracy number. `labels-v1` (full rules, split, leakage policy and deviations in
+[docs/LABELS.md](docs/LABELS.md)) holds **3,279 labels**: one label is a 1 km cell x 7-day window with at least one
+VIIRS detection, or one verified incident.
+
+![labels-v1: labels per class and split, and where they are](docs/images/label_set.png)
+
+| Class | Rule (short) | Train | Test |
+|---|---|---|---|
+| `industrial_persistent` | within 1 km of a WRI / flare-site facility that was active on >= 20 % of 365 days | 610 | 103 |
+| `agricultural_burning` | WorldCover cropland >= 70 %, Punjab / Haryana / west UP, Oct-Nov or Apr-May, no facility within 3 km, episodic | 804 | 750 |
+| `vegetation_fire` | WorldCover tree + shrub >= 70 %, no facility within 3 km, episodic | 812 | 168 |
+| `industrial_fire` | verified documented incident (source text + OSM location) | - | 32 |
+
+* **Split by region and by time, never random:** train = held-in regions before 2026-04-01; test = held-out regions
+  (Andhra Pradesh, Chhattisgarh, Maharashtra, Punjab) from 2026-04-01. Incidents are test-only.
+* **Evidence per label:** source URL, rule inputs and values (`detail`), who/what labelled it; incidents carry the
+  source's sha256 and their NASA FIRMS result. Stored in PostGIS (`labels`, migration 007) and as parquet / csv.gz with
+  `manifest_v1.json` (sha256 of every file, inputs, parameters): `python -m src.labels.cli verify`.
+* **Leakage:** the weak rules read the same things a classifier reads (facility proximity, land cover, season, 365-day
+  activity). A score on those three classes measures agreement with the rules; report it next to a model that is
+  blind to the rule inputs. The 32 incidents are the only labels independent of them.
+* **Not met as planned:** vegetation fires are not confirmed by MODIS MCD64A1 burned area (needs an Earthdata login);
+  Global Energy Monitor trackers are not loaded, so `industrial_persistent` rests on 36 power-plant and flare-site
+  facilities; `industrial_persistent` test support is 103 windows and `agricultural_burning` test is one state.
+
+```bash
+cd industrial-data
+python scripts/incident_evidence_fetch.py     # (repo root) fetch each incident's source page
+python scripts/incident_evidence_check.py     # does the text name event, place and date?
+python scripts/build_incidents_verified.py      # source checks + curated locations -> data_labels/incidents_verified.csv
+python -m src.labels.cli build --postgis        # -> data/labels, data_labels/labels_v1, PostGIS table `labels`
+python -m src.labels.cli verify
+```
 
 ## What is implemented (and verified)
 
@@ -187,16 +224,16 @@ and run `docker compose --profile bootstrap run --rm facilities` to finish it.
   | Other | 89 |
 
   The persistent-industrial list is plausible: it is dominated by Odisha/Jharkhand coal mines, plus e.g. Tata Steel Meramandali, Jindal Raigarh and Jojobera power stations - night-time detections on 7 of 7 days. The rule-based classes were then checked against the incident list and a trained model (below).
-* **Documented industrial-fire incidents vs NASA FIRMS** (40 public-source incidents, 2016-2025, matched against the VIIRS S-NPP/NOAA-20 archive; script `industrial-data/scripts/match_incidents.py`). Event window = date -1 / +2 days, baseline = 60 to 8 days before, radius = location uncertainty + 0.5 km, "routine" = active on >= 30 % of baseline days. Query parameters are stored with the results.
+* **Documented industrial-fire incidents vs NASA FIRMS** (40 public-source incidents, 2016-2025, matched against the VIIRS S-NPP/NOAA-20 archive; script `industrial-data/scripts/match_incidents.py`, locations in `industrial-data/data_labels/incident_locations.py`). Event window = date -1 / +2 days, baseline = 60 to 8 days before, radius = location uncertainty + 0.5 km, "routine" = active on >= 30 % of baseline days. Query parameters are stored with the results.
 
-  | Outcome | Incidents |
-  |---|---|
-  | Not assessable (no verified facility/area location) | 17 |
-  | Anomalous VIIRS detection near the incident (quiet baseline) | 9 |
-  | No detection | 8 |
-  | Detection but the site is routinely hot (cannot attribute) | 6 |
+  | Outcome | All 40 | Of the 32 verified: plant / estate / locality |
+  |---|---|---|
+  | Not assessable (not verified or no location, see [docs/LABELS.md](docs/LABELS.md)) | 8 | - |
+  | Anomalous VIIRS detection near the incident (quiet baseline) | 13 | 5 / 4 / 4 |
+  | No detection | 12 | 0 / 7 / 5 |
+  | Detection but the site is routinely hot (cannot attribute) | 7 | 6 / 0 / 1 |
 
-  The 9 anomalous matches: Jamnagar FCCU flash fire 2016-11-24 (1 det., 3.3 MW), Panipat Naphtha Cracker 2018-01-22 (3, 6.0 MW), Mathura refinery 2020-01-07 (1, 0.6 MW), Vatva GIDC 2020-12-09 (8, 62.4 MW), Numaligarh hydrocracker 2023-05-29 (1, 0.5 MW), Barauni ETP 2024-02-10 (4, 6.5 MW), plus three locality-level matches (Bengaluru 2020-11-10, Kundli 2022-04-17, Igatpuri/Jindal Poly Films 2023-01-01: 17 det., 54.1 MW). **Read with care:** facility-level matches are mostly under 7 MW, near the VIIRS detection floor; locality-level matches use a 5 km centroid, so nearby unrelated heat can match; a match is *a* thermal anomaly at the right place and time, not proof of the reported fire; no detection does not mean no fire (375 m pixels, cloud, small fires between passes). Only 11 of 40 incident locations are facility-level (OSM named objects), 4 industrial-estate level, 8 locality, 17 unlocated.
+  A detection above baseline is evidence that the place was hot at that time, not proof that it was the reported fire; detections are mostly 0.5 to 9 MW, two are above 50 MW (Vatva GIDC 62.4 MW, Igatpuri / Jindal Poly Films 54.1 MW).
 * **Trained classifier vs rules** (`docs/EVALUATION.md`, `industrial-data/scripts/train_classifier.py`). Gradient-boosted trees (scikit-learn `HistGradientBoostingClassifier`) on 7-day source windows from the S-NPP archive (2025-07 to 2026-10, 562k detections in India). Strict hold-out: test = 11 held-out states AND windows from 2026-04-01; train = other states and earlier windows (4,382 train / 2,318 test windows).
 
   | | macro-F1 | accuracy |
@@ -340,7 +377,7 @@ TEST_DATABASE_URL=postgresql://user:pw@localhost:5432/postgres python -m pytest 
 cd industrial-gis/frontend && npx tsc --noEmit && npm test && npm run build
 ```
 
-Results on the development machine (2026-10-15): `industrial-data/tests` 290 passed with PostGIS available; API synthetic suite 62 passed; API against PostGIS 34 passed; frontend `tsc` clean, vitest 37 passed. GitHub Actions: the pushes to `main` completed with `success`.
+Results on the development machine (2026-10-15): `industrial-data/tests` 297 passed with PostGIS available (includes 6 label-rule tests, the labels-table test and the baseline SQL-vs-pandas parity tests); API synthetic suite 62 passed; API against PostGIS 34 passed; frontend `tsc` clean, vitest 37 passed. GitHub Actions: the pushes to `main` completed with `success`.
 
 ## Configuration
 
@@ -348,7 +385,7 @@ See `.env.example`. Key variables: `POSTGRES_*`, `ALLOWED_ORIGINS`, `ADMIN_TOKEN
 
 ## Known limitations
 
-* The live classifier is rule-based with expert priors. A trained model beats it on a held-out split, but against **weak rule-derived labels, not ground truth**; incident evidence covers only 23 of 40 documented incidents (17 could not be located) and is mostly near the detection floor. Agricultural vs. other low-power vegetation fires and industrial vs. unmapped industry depend on OSM completeness.
+* The live classifier is rule-based with expert priors. A trained model beats it on a held-out split, but against **weak rule-derived labels, not ground truth**; incident evidence covers 32 of 40 documented incidents (8 could not be verified or located), 10 of them only to a named locality, and is mostly near the detection floor. Agricultural vs. other low-power vegetation fires and industrial vs. unmapped industry depend on OSM completeness.
 * VIIRS is 375 m and ~3 h behind real time; a short-lived industrial event can fall between overpasses. Persistence needs history: the first run only has the 7 days FIRMS publishes (history accumulates afterwards).
 * Facility matching uses a radius around a representative point (the equivalent-area radius of the OSM outline where one is stored, else the outline's bounding box, else a kind default); large plants can be missed or over-matched, and merging records widens the circle (on one FIRMS window, 8 of 5,384 crop/vegetation sources became "fire candidate" for that reason).
 * Global Energy Monitor trackers (steel, coal mines, cement, oil and gas plants) are not loaded: the download form is protected by a Cloudflare bot check that a person has to complete. Their loader is tested on fixtures, not on the real files.

@@ -39,9 +39,7 @@ def resolve_locations(geo: pd.DataFrame) -> pd.DataFrame:
                "location_note": None}
         if iid in CURATED:
             ref, lat, lon, rad, quality, why = CURATED[iid]
-            if ref == "auto":
-                lat, lon = r.get("Latitude"), r.get("Longitude")
-            out.update(match_lat=lat, match_lon=lon, radius_km=rad, location_basis=quality, osm_ref=ref if ref != "auto" else r.get("osm_ref"), location_note=why)
+            out.update(match_lat=lat, match_lon=lon, radius_km=rad, location_basis=quality, osm_ref=ref, location_note=why)
         elif iid not in REJECT_AUTO and r["location_quality"] in ("industrial_area", "locality") and pd.notna(r.get("Latitude")):
             out.update(match_lat=r["Latitude"], match_lon=r["Longitude"], radius_km=r.get("uncertainty_km") or 5.0,
                        location_note="auto-geocoded, unreviewed")

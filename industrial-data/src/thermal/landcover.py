@@ -21,7 +21,9 @@ TILE_URL = ("https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/
 CLASSES = {10: "tree", 20: "shrub", 30: "grass", 40: "crop", 50: "built", 60: "bare",
            70: "snow", 80: "water", 90: "wetland", 95: "mangrove", 100: "moss"}
 GROUPS = {"vegetation": ("tree", "shrub", "grass", "mangrove", "wetland", "moss"),
-          "crop": ("crop",), "built": ("built",), "bare": ("bare",), "water": ("water", "snow")}
+          "crop": ("crop",), "built": ("built",), "bare": ("bare",), "water": ("water", "snow"),
+          # tree + shrub + mangrove only (no grass / wetland): the "forest area" proxy used by the label rules
+          "woody": ("tree", "shrub", "mangrove")}
 ATTRIBUTION = "ESA WorldCover 2021 v200 © ESA, CC BY 4.0"
 _local = threading.local()
 
@@ -94,12 +96,12 @@ def sample_many(points: pd.DataFrame, cache_path: str | Path | None = None, work
         with ThreadPoolExecutor(max_workers=workers) as pool:
             for key, res in pool.map(work, todo):
                 cache[key] = res or {"vegetation": None, "crop": None, "built": None, "bare": None,
-                                     "water": None, "dominant": None}
+                                     "water": None, "woody": None, "dominant": None}
         if cache_file:
             cache_file.parent.mkdir(parents=True, exist_ok=True)
             pd.DataFrame.from_dict(cache, orient="index").to_json(cache_file, orient="index")
     frame = pd.DataFrame([cache.get(k, {}) for k in keys], index=points.index)
-    for col in ("vegetation", "crop", "built", "bare", "water", "dominant"):
+    for col in ("vegetation", "crop", "built", "bare", "water", "woody", "dominant"):
         if col not in frame:
             frame[col] = np.nan
-    return frame[["vegetation", "crop", "built", "bare", "water", "dominant"]].add_prefix("lc_")
+    return frame[["vegetation", "crop", "built", "bare", "water", "woody", "dominant"]].add_prefix("lc_")

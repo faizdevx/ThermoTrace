@@ -44,10 +44,10 @@
     "landfill": 1
   },
   "incident_status": {
-    "not_assessable": 17,
-    "matched_anomalous": 9,
-    "no_detection": 8,
-    "routine_source": 6
+    "matched_anomalous": 13,
+    "no_detection": 12,
+    "not_assessable": 8,
+    "routine_source": 7
   },
   "eval": {
     "rules": {

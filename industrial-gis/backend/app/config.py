@@ -31,7 +31,7 @@ _VALID_MODES: frozenset[str] = frozenset({"synthetic", "postgis"})
 class Settings:
     """Immutable application settings, populated from environment variables."""
 
-    __slots__ = ("database_url", "data_mode", "allowed_origins", "admin_token", "statement_timeout_ms", "pool_size")
+    __slots__ = ("database_url", "data_mode", "allowed_origins", "admin_token", "analyst_token", "statement_timeout_ms", "pool_size")
 
     def __init__(self) -> None:
         raw_mode = os.getenv("DATA_MODE", "postgis").strip().lower()
@@ -50,6 +50,7 @@ class Settings:
                 "Set DATA_MODE=synthetic only for the labelled offline demo."
             )
         self.admin_token: str = os.getenv("ADMIN_TOKEN", "").strip()
+        self.analyst_token: str = os.getenv("ANALYST_TOKEN", "").strip()
         self.statement_timeout_ms: int = int(os.getenv("DB_STATEMENT_TIMEOUT_MS", "30000"))
         self.pool_size: int = int(os.getenv("DB_POOL_SIZE", "5"))
 

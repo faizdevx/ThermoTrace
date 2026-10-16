@@ -5,6 +5,9 @@
  * the nginx container proxy forward it to the FastAPI backend).
  */
 import type {
+  AlertDecision,
+  AlertList,
+  ThermalAlert,
   BoundaryFeature,
   FeatureCollection,
   FilterOptionsResponse,
@@ -52,7 +55,7 @@ export class ApiError extends Error {
 
 async function requestJson<T>(
   path: string,
-  options: { timeoutMs?: number; signal?: AbortSignal } = {},
+  options: { timeoutMs?: number; signal?: AbortSignal; method?: 'GET' | 'POST'; body?: unknown; headers?: Record<string, string> } = {},
 ): Promise<T> {
   const controller = new AbortController();
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -64,7 +67,9 @@ async function requestJson<T>(
   try {
     const response = await fetch(`${API_BASE}${path}`, {
       signal: controller.signal,
-      headers: { Accept: 'application/json' },
+      method: options.method ?? 'GET',
+      headers: { Accept: 'application/json', ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...options.headers },
+      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
     });
     if (!response.ok) {
       let message = `HTTP ${response.status}`;
@@ -190,4 +195,20 @@ export function thermalExportUrl(format: 'csv' | 'geojson', filters: ThermalFilt
 
 export function fetchThermalImagery(id: string, signal?: AbortSignal): Promise<ThermalImagery> {
   return requestJson(`/thermal/sources/${encodeURIComponent(id)}/imagery`, { timeoutMs: 90_000, signal });
+}
+
+export function fetchAlerts(status?: string, signal?: AbortSignal): Promise<AlertList> {
+  return requestJson(`/alerts${buildQuery({ status } as QueryFilters)}`, { signal });
+}
+
+export function fetchAlert(id: number, signal?: AbortSignal): Promise<ThermalAlert> {
+  return requestJson(`/alerts/${id}`, { signal });
+}
+
+export function postAlertDecision(
+  id: number, decision: AlertDecision, note: string, analyst: string, token: string,
+): Promise<{ alert_id: number; decision: AlertDecision; label_id: string; label: string }> {
+  return requestJson(`/alerts/${id}/decision`, {
+    method: 'POST', body: { decision, note, analyst }, headers: { 'X-Analyst-Token': token },
+  });
 }

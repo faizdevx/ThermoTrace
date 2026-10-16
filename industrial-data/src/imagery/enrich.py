@@ -23,10 +23,11 @@ COLUMNS = ["imagery_available", "imagery_scene_id", "imagery_scene_time", "image
 _ALERT_RANK = {"critical": 0, "high": 1, "watch": 2}
 
 
-def candidate_order(src: pd.DataFrame) -> pd.DataFrame:
-    """Sources worth spending imagery requests on, best first."""
+def candidate_order(src: pd.DataFrame, priority_ids=()) -> pd.DataFrame:
+    """Sources worth spending imagery requests on, best first. ``priority_ids`` (sources that raise an alert) go first."""
     s = src.copy()
     rank = s["alert_level"].map(_ALERT_RANK).fillna(9)
+    rank = rank.where(~s["source_id"].isin(set(priority_ids)), -1)
     fire = (s["thermal_class"] == "industrial_fire_candidate").astype(int)
     z = pd.to_numeric(s.get("frp_z"), errors="coerce").fillna(0)
     industrial_hot = ((s.get("model_class") == "industrial_persistent") & (z >= 3)).astype(int)
@@ -48,7 +49,7 @@ def _row_values(result: dict | None) -> dict:
 
 
 def enrich_sources(src: pd.DataFrame, cache_dir: str | Path, per_cycle: int = 4, budget_seconds: float = 240.0,
-                   analyse=core.analyse_source) -> tuple[pd.DataFrame, dict]:
+                   analyse=core.analyse_source, priority_ids=()) -> tuple[pd.DataFrame, dict]:
     """Return ``(sources with imagery_* columns and imagery lines appended to reasons, stats)``."""
     out = src.copy().reset_index(drop=True)
     cache = core.DiskCache(cache_dir)
@@ -57,7 +58,7 @@ def enrich_sources(src: pd.DataFrame, cache_dir: str | Path, per_cycle: int = 4,
     for i, r in out.iterrows():
         results[i] = cache.get(str(r.source_id), str(r.last_seen))
         stats["cached"] += results[i] is not None
-    cand = candidate_order(out)
+    cand = candidate_order(out, priority_ids)
     stats["candidates"] = int(len(cand))
     started = time.time()
     done = 0

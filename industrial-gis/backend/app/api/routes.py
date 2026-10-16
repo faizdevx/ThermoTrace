@@ -424,6 +424,51 @@ def thermal_model() -> dict[str, Any]:
     return {"available": False, "reason": "No trained model registered. Run: python industrial-data/scripts/evaluate.py"}
 
 
+# ---------------------------------------------------------------- alerts (analyst inbox)
+@router.get("/alerts")
+def list_alerts(status: str | None = Query(default=None, pattern="^(open|confirmed|rejected|unsure)$"),
+                limit: int = Query(default=100, ge=1, le=500)) -> dict[str, Any]:
+    """Alerts, open ones first. Needs PostGIS (alerts are written by the thermal worker); empty in synthetic mode."""
+    if not _live():
+        return {"available": False, "alerts": [], "decisions_enabled": False, "channels": []}
+    from backend.app.services import alerts_repo
+    rows = alerts_repo.list_alerts(status, limit)
+    return {"available": True, "alerts": rows, "channels": alerts_repo.channels(rows),
+            "decisions_enabled": bool(get_settings().analyst_token)}
+
+
+@router.get("/alerts/{alert_id}")
+def alert_detail(alert_id: int) -> dict[str, Any]:
+    if not _live():
+        raise HTTPException(status_code=404, detail="Alerts need the PostGIS stack.")
+    from backend.app.services import alerts_repo
+    a = alerts_repo.get_alert(alert_id)
+    if a is None:
+        raise HTTPException(status_code=404, detail="Unknown alert.")
+    return a
+
+
+@router.post("/alerts/{alert_id}/decision")
+def alert_decision(alert_id: int, payload: dict[str, Any], x_analyst_token: str | None = Header(default=None)) -> dict[str, Any]:
+    """Confirm / reject / unsure. Writes the decision and a row in ``labels`` (analyst-v1) for retraining."""
+    token = get_settings().analyst_token
+    if not token:
+        raise HTTPException(status_code=503, detail="Analyst decisions are disabled (ANALYST_TOKEN not set).")
+    if not x_analyst_token or not secrets.compare_digest(x_analyst_token, token):
+        raise HTTPException(status_code=401, detail="Invalid analyst token.")
+    if not _live():
+        raise HTTPException(status_code=404, detail="Alerts need the PostGIS stack.")
+    from backend.app.services import alerts_repo
+    decision = str(payload.get("decision", ""))
+    if decision not in alerts_repo.DECISIONS:
+        raise HTTPException(status_code=422, detail=f"decision must be one of {list(alerts_repo.DECISIONS)}")
+    try:
+        out = alerts_repo.decide(alert_id, decision, payload.get("note"), payload.get("analyst"))
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Unknown alert.") from None
+    return out
+
+
 @router.get("/thermal/classes")
 def thermal_classes() -> dict[str, Any]:
     """Class metadata for legends: label, colour and what each class means."""

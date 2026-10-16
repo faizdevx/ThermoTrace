@@ -11,6 +11,9 @@ import { LiveStatus, type UiUpdateInfo } from '@/components/LiveStatus';
 import { ExportMenu } from '@/components/ExportMenu';
 import { ThermalControls } from '@/components/ThermalControls';
 import { ThermalDetails } from '@/components/ThermalDetails';
+import { AlertInbox } from '@/components/AlertInbox';
+import { openCount } from '@/components/alertView';
+import { useAlerts } from '@/hooks/useAlerts';
 import { useThermal } from '@/hooks/useThermal';
 import {
   ApiError,
@@ -112,12 +115,16 @@ export default function App() {
   }, []);
 
   const thermal = useThermal();
+  const alerts = useAlerts();
+  const refreshAlerts = alerts.refresh;
+  const [showInbox, setShowInbox] = useState(false);
   const refreshThermal = thermal.refresh;
   // a new FIRMS snapshot was published: refetch thermal data only (sites are unaffected)
   const handleThermalEvent = useCallback(() => {
     refreshThermal();
+    refreshAlerts();
     setLiveToast('Thermal data updated');
-  }, [refreshThermal]);
+  }, [refreshThermal, refreshAlerts]);
 
   const { connection } = useLiveUpdates({
     onRevision: handleRevision, onSyncEvent: refreshSyncStatus, onThermal: handleThermalEvent,
@@ -566,6 +573,16 @@ export default function App() {
             </p>
           </div>}
 
+          {alerts.available && (
+            <button
+              data-testid="open-inbox" onClick={() => setShowInbox(v => !v)}
+              style={{ position: 'absolute', top: 12, right: 12, zIndex: 600, padding: '7px 12px', borderRadius: 99, border: 'none', cursor: 'pointer',
+                background: openCount(alerts.alerts) ? '#dc2626' : '#0f172a', color: '#fff', fontWeight: 700, fontSize: 12 }}
+            >
+              Alerts{openCount(alerts.alerts) ? ` (${openCount(alerts.alerts)} open)` : ''}
+            </button>
+          )}
+
           {liveToast && (
             <div role="status" style={{
               position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 600,
@@ -607,6 +624,8 @@ export default function App() {
         gone={thermal.selectedGone}
         onClose={() => thermal.select(null)}
       />
+      <AlertInbox alerts={alerts} open={showInbox} onClose={() => setShowInbox(false)}
+        onLocate={a => thermal.select(a.source_id)} />
       <AnalyticsPanel statistics={statistics} isOpen={showAnalytics} onClose={() => setShowAnalytics(false)} />
 
       {(selectedSite || showAnalytics) && (

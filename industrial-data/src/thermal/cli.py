@@ -117,6 +117,7 @@ def refresh_once(out_dir: Path, window_days: int, use_landcover: bool = True, in
                 _maybe_refresh_baseline(dsn.replace("postgresql+psycopg2://", "postgresql://"), out_dir)
                 from src.ml import live as ml_live
                 store.register_model(dsn.replace("postgresql+psycopg2://", "postgresql://"), ml_live.model_path().with_name("metrics.json"))
+                _raise_alerts(dsn.replace("postgresql+psycopg2://", "postgresql://"), result, out_dir)
             except Exception as exc:  # noqa: BLE001 - snapshot is still valid; report, do not hide
                 logger.error("PostGIS persist failed: %s", exc)
                 store.write_status(out_dir, db_error=str(exc)[:300])
@@ -141,16 +142,37 @@ def refresh_once(out_dir: Path, window_days: int, use_landcover: bool = True, in
         raise
 
 
+def _raise_alerts(dsn: str, result, out_dir: Path) -> None:
+    """Industrial-fire alerts for this cycle (deduplicated per facility, delivered to every configured channel)."""
+    if os.getenv("ALERTS_ENABLED", "true").lower() not in ("1", "true", "yes") or result.sources.empty:
+        return
+    import psycopg2
+    from src.alerts import store as alert_store
+    conn = psycopg2.connect(dsn, application_name="thermotrace-alerts")
+    try:
+        stats = alert_store.process_cycle(conn, result.sources)
+    finally:
+        conn.close()
+    logger.info("alerts: %s", stats)
+    store.write_status(out_dir, alerts=stats)
+
+
 def _attach_imagery(result, out_dir: Path) -> None:
     """Sentinel-2 / Landsat evidence for alerts and industrial candidates (cached; a few new ones per cycle)."""
     if os.getenv("THERMAL_IMAGERY", "true").lower() not in ("1", "true", "yes") or result.sources.empty:
         return
     try:
         from src.imagery import core, enrich
+        priority = []
+        try:                                  # sources that raise an alert get their imagery first
+            from src.alerts import rules as alert_rules
+            priority = [a.source_id for a in alert_rules.evaluate(result.sources)]
+        except Exception:  # noqa: BLE001
+            pass
         cache_dir = env_path("THERMAL_IMAGERY_DIR", str(out_dir.parent / "imagery"))
         result.sources, stats = enrich.enrich_sources(
             result.sources, cache_dir, per_cycle=int(os.getenv("THERMAL_IMAGERY_PER_CYCLE", "4")),
-            budget_seconds=float(os.getenv("THERMAL_IMAGERY_BUDGET_SECONDS", "240")))
+            budget_seconds=float(os.getenv("THERMAL_IMAGERY_BUDGET_SECONDS", "240")), priority_ids=priority)
         result.summary["imagery"] = stats
         logger.info("imagery: %s", stats)
     except Exception as exc:  # noqa: BLE001 - never lose a cycle over evidence

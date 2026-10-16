@@ -60,7 +60,7 @@ app.add_middleware(
     allow_origins=settings.allowed_origins,
     allow_credentials=False,  # no cookies/sessions are used
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "X-Admin-Token", "Last-Event-ID"],
+    allow_headers=["Content-Type", "X-Admin-Token", "X-Analyst-Token", "Last-Event-ID"],
     expose_headers=["X-Total-Count", "X-Data-Revision", "Content-Disposition"],
 )
 

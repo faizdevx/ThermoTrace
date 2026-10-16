@@ -387,3 +387,26 @@ export interface FacilityDetail extends FacilityFeature {
   footprint: { type: string; coordinates: unknown } | null;
   source_records: FacilitySourceRecord[];
 }
+
+// ---- Phase 6: alerts and the analyst loop --------------------------------------------------------------------------
+export type AlertSeverity = 'watch' | 'high' | 'critical';
+export type AlertStatus = 'open' | 'confirmed' | 'rejected' | 'unsure';
+export type AlertDecision = 'confirmed' | 'rejected' | 'unsure';
+
+export interface AlertDelivery { ok: boolean; at: string | null; error: string | null; attempts?: number }
+export interface AlertImagery {
+  imagery_available: boolean; imagery_scene_id?: string | null; imagery_scene_time?: string | null; imagery_cloud_percent?: number | null;
+  imagery_dnbr_p95?: number | null; imagery_swir_hot_pixels?: number | null; imagery_landsat_excess_k?: number | null;
+}
+export interface AlertTimelineEvent { at: string; kind: 'first_detection' | 'peak' | 'last_detection' | 'alert' | 'imagery' | 'delivery' | 'decision'; text: string }
+export interface AlertDecisionRecord { id: number; decision: AlertDecision; note: string | null; analyst: string | null; decided_at: string; label_id: string | null }
+
+export interface ThermalAlert {
+  alert_id: number; facility_key: string; source_id: string; site_ref: string | null; site_name: string | null; site_kind: string | null;
+  state: string | null; trigger: 'p_fire' | 'frp_z' | 'both' | 'test'; severity: AlertSeverity; p_fire: number | null; frp_max: number | null;
+  frp_z: number | null; first_seen: string | null; last_seen: string | null; peak_frp: number | null; peak_at: string | null; summary: string;
+  reasons: string[] | null; imagery: AlertImagery | null; status: AlertStatus; delivery: Record<string, AlertDelivery>; is_test: boolean;
+  created_at: string; updated_at: string; lat: number; lon: number;
+  timeline?: AlertTimelineEvent[]; decisions?: AlertDecisionRecord[];
+}
+export interface AlertList { available: boolean; alerts: ThermalAlert[]; channels: string[]; decisions_enabled: boolean }

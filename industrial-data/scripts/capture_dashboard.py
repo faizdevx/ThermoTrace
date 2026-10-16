@@ -167,6 +167,17 @@ def main():
             cdp.shot(OUT / "source_imagery.png")
             print("saved source_imagery.png for", img["id"])
 
+        # --- analyst inbox: open the alert list, expand the strongest open alert (timeline + decision form) ----------
+        if cdp.js("!!document.querySelector('[data-testid=open-inbox]')"):
+            cdp.js("(() => { document.querySelector('.leaflet-popup-close-button')?.click(); return 0; })()")
+            cdp.js("(() => { document.querySelector('[data-testid=open-inbox]').click(); return 0; })()")
+            wait(cdp, "!!document.querySelector('aside button[aria-expanded]')", 30, "inbox list")
+            cdp.js("(() => { document.querySelector('aside button[aria-expanded=false]').click(); return 0; })()")
+            wait(cdp, "!!document.querySelector('[data-testid=alert-timeline]')", 30, "alert detail")
+            time.sleep(1.5)
+            cdp.shot(OUT / "alert_inbox.png")
+            print("saved alert_inbox.png")
+
     finally:
         proc.kill()
 

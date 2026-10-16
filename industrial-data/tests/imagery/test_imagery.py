@@ -174,3 +174,9 @@ def test_enrichment_survives_a_failing_service(tmp_path):
     out, stats = enrich.enrich_sources(_sources(), tmp_path, per_cycle=3, analyse=boom)
     assert stats["failed"] == 2 and stats["computed"] == 0
     assert out.set_index("source_id").loc["a"].reasons == ["r1"] and len(out) == 3
+
+
+def test_sources_that_raise_an_alert_get_their_imagery_first():
+    src = _sources()
+    order = enrich.candidate_order(src, priority_ids=["c"]).source_id.tolist()
+    assert order[0] == "c" and set(order) == {"a", "c"}

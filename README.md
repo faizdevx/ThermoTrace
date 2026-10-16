@@ -96,7 +96,8 @@ Regenerate: `python industrial-data/scripts/evaluate.py [--refresh-features] && 
 | 3 | Labelled evaluation set: 3,247 weak rule labels (3 classes) + 32 verified incidents, region/time split, checksummed manifest | **done** with two documented deviations (no MCD64A1 confirmation, no GEM) - see [Labelled evaluation set](#labelled-evaluation-set) |
 | 4 | Trained model (gradient-boosted trees, calibrated, Shapley reasons, `model_version`) in the live pipeline, rules kept as baseline/fallback, `docs/EVALUATION.md`, `/api/thermal/model` | **done**: model beats rules on held-out data (0.993 vs 0.809 macro-F1, against rule-derived labels); incident check runs on 19 of 34 verified incidents while the rest download |
 | 5 | Sentinel-2 L2A after/before chips (true colour + SWIR), dNBR, SWIR hot pixels, Landsat 8/9 TIRS check, cached, `/api/thermal/sources/{id}/imagery`, dNBR in the reasons | **done**; imagery tested as model features and **not** adopted (see Finding 6) |
-| 6-9 | alerting, replay demo, judge-facing dashboard | planned - see [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) |
+| 6 | Industrial-fire alerting (rule, severity, dedupe per facility per 6 h), webhook + Telegram + email delivery, analyst inbox (Confirm / Reject / Unsure + note) writing to `labels`, incident timeline | **done**; delivery verified against a local fake Telegram server, **not yet against a real bot** (needs your `TELEGRAM_BOT_TOKEN`) - see [Alerting](#alerting-and-the-analyst-loop) |
+| 7-9 | replay demo, judge-facing dashboard, remaining items | planned - see [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) |
 
 ## Baseline: what is normal for this place
 
@@ -247,6 +248,27 @@ python -m src.labels.cli verify
 
 ---
 
+## Alerting and the analyst loop
+
+![Alert inbox: severity, delivery, timeline with imagery, Confirm / Reject / Unsure](docs/images/alert_inbox.png)
+
+_The inbox lists alerts (open first, then by severity). Opening one shows the incident timeline - Sentinel-2 scene, first detection, peak power, latest detection, alert raised, delivery per channel, analyst decisions - and the decision form; "Show on map + satellite imagery" opens the source panel with the dated chips._
+
+**Rule** (`industrial-data/src/alerts/rules.py`, evaluated by the thermal worker after every cycle that brought new detections). A source alerts when it was seen in the last 24 h, has peak power of at least 5 MW and **either**
+
+* the **P(industrial fire)** is at least 0.6 (`ALERT_P_FIRE_THRESHOLD`) - this is the *rule classifier's* score for `industrial_fire_candidate`: the trained model has no fire class (verified incidents are test-only, see [docs/EVALUATION.md](docs/EVALUATION.md)), so it cannot supply that number; **or**
+* it is **at a known facility** (inside the facility's match radius, not merely the nearest one) and its power is at least **3 standard deviations above that facility's own 365-day baseline** (`ALERT_FRP_Z_THRESHOLD`).
+
+**Severity**: peak power sets the level (`watch` below 40 MW, `high` from 40 MW, `critical` from 100 MW); refineries, LNG, chemical, oil/gas, fuel and fertiliser facilities are raised one level. **Deduplication**: one alert per facility per 6 h (`ALERT_DEDUPE_HOURS`); later cycles inside the window refresh the alert's peak and last detection but never notify again. At most 10 new alerts per cycle (`ALERT_MAX_PER_CYCLE`); the rest are still candidates in the next cycle.
+
+**Delivery** (`src/alerts/notify.py`): webhook (JSON, optional `X-ThermoTrace-Signature` HMAC), Telegram bot, SMTP email. Credentials come from the environment only (`.env`, never committed; variables in `.env.example`). A channel without credentials is skipped; a failing channel is recorded on the alert and retried in later cycles (up to 5 attempts) without blocking the others. `python -m src.alerts test` (inside the worker container) sends a clearly labelled test alert through every configured channel.
+
+**Analyst loop**: `POST /api/alerts/{id}/decision` with `X-Analyst-Token` (= `ANALYST_TOKEN`; empty means decisions are disabled). Every decision is kept in `alert_decisions` and the latest one per alert is written to `labels` (`label_id analyst-alert-<id>`, `unit_type incident`, `label` = `industrial_fire` / `not_industrial_fire` / `unsure`, `rule_version analyst-v1`, `split unused`, with the note and trigger in `detail`). The split keeps analyst labels out of the frozen `labels-v1` evaluation; a later model version can train on them.
+
+**Measured** (2026-10-16, real data, local stack): one cycle on live FIRMS data gave 78 candidate facilities *before* the "at the facility" fix - 70 of them were only the nearest facility, up to 37 km from a crop fire (z-scores of +30 against a mine's baseline) - and **8 alerts** after it (4 by baseline z alone, 4 by both rules; 2 `high`, 6 `watch`); all 8 were delivered to a local fake Telegram API in the same cycle, a second forced cycle created 0 new alerts and sent nothing (8 deduplicated), the CLI test alert was delivered, and a Confirm through the API appeared in `labels` as `analyst-alert-13 | industrial_fire | analyst:faiz | analyst-v1 | unused`. Most of the 8 are 5-11 MW detections at mines and flares: a power z-score says "unusual for this place", not "fire".
+
+**Limits.** No real Telegram bot, SMTP server or webhook receiver was used in testing (local fakes and mocks only); `ANALYST_TOKEN` is one shared secret, not per-user login; the dashboard's top "Alerts" card still counts the older `alert_level` flag, not these alerts; the server does not yet retrain on analyst labels - they are collected and queryable.
+
 ## Facility database (OSM + WRI + Global Energy Monitor + VIIRS Nightfire)
 
 Facilities are merged into one table with provenance: `facilities` (one row per physical facility) and
@@ -361,6 +383,8 @@ Development without Docker for the app: run PostGIS yourself, then `uvicorn back
 | `GET /facilities`, `/facilities/{id}` | merged facilities (`bbox,kind,source,limit`) with per-source licences; detail adds the OSM footprint and every source record |
 | `GET /sync/status`, `/sync/history` | per-source freshness (`live/syncing/delayed/offline/not_configured/awaiting_setup`) |
 | `GET /events` | Server-Sent Events: `hello`, `revision`, `sync`, `thermal`; the UI falls back to 10 s polling |
+| `GET /alerts`, `/alerts/{id}` | alert inbox (`status=open|confirmed|rejected|unsure`); detail adds the incident timeline and decisions |
+| `POST /alerts/{id}/decision` | `{decision: confirmed|rejected|unsure, note, analyst}`; needs `X-Analyst-Token` (`ANALYST_TOKEN`), writes `labels` |
 | `POST /admin/sync/trigger` | asks the worker to sync now; needs `ADMIN_TOKEN` (`X-Admin-Token`), disabled when unset |
 
 "Live" never means "the API answers": it means checked recently, caught up with the source, and within the source's freshness target (36 h for daily OSM diffs; FIRMS checked every 10 min with newest data < 12 h old). `/sync/status` and the status panel list OSM and NASA FIRMS side by side with last check, last data change and last commit as separate times.
@@ -376,11 +400,11 @@ TEST_DATABASE_URL=postgresql://user:pw@localhost:5432/postgres python -m pytest 
 cd industrial-gis/frontend && npx tsc --noEmit && npm test && npm run build
 ```
 
-Results on the development machine (2026-10-15): `industrial-data/tests` 292 passed, 28 skipped without PostGIS (includes the ML and imagery tests); API synthetic suite 64 passed; frontend `tsc` clean, vitest 46 passed. GitHub Actions: the pushes to `main` completed with `success`.
+Results on the development machine (2026-10-15): `industrial-data/tests` 341 passed with PostGIS available (about 300 without; includes the ML, imagery and alert tests); API synthetic suite 64 passed; API against PostGIS 38 passed (includes the alert inbox); frontend `tsc` clean, vitest 55 passed. GitHub Actions: the pushes to `main` completed with `success`.
 
 ## Configuration
 
-See `.env.example`. Key variables: `POSTGRES_*`, `ALLOWED_ORIGINS`, `ADMIN_TOKEN`, `OSM_REGION`, `OSM_POLL_INTERVAL_SECONDS`, `OSM_FRESHNESS_TARGET_SECONDS`, `FIRMS_MAP_KEY` (optional), `THERMAL_INTERVAL_SECONDS` (default 600), `THERMAL_FACILITIES_GEOJSON`, `FACILITIES_DIR`, `FACILITIES_BACKEND` (`auto`/`files`/`postgis`), `THERMAL_WINDOW_DAYS`, `THERMAL_IMAGERY` (on by default), `THERMAL_IMAGERY_DIR`, `THERMAL_IMAGERY_PER_CYCLE` (default 4), `THERMAL_IMAGERY_BUDGET_SECONDS` (default 240), `VITE_TILE_URL`. Never commit `.env`.
+See `.env.example`. Key variables: `POSTGRES_*`, `ALLOWED_ORIGINS`, `ADMIN_TOKEN`, `OSM_REGION`, `OSM_POLL_INTERVAL_SECONDS`, `OSM_FRESHNESS_TARGET_SECONDS`, `FIRMS_MAP_KEY` (optional), `THERMAL_INTERVAL_SECONDS` (default 600), `THERMAL_FACILITIES_GEOJSON`, `FACILITIES_DIR`, `FACILITIES_BACKEND` (`auto`/`files`/`postgis`), `THERMAL_WINDOW_DAYS`, `THERMAL_IMAGERY` (on by default), `THERMAL_IMAGERY_DIR`, `THERMAL_IMAGERY_PER_CYCLE` (default 4), `THERMAL_IMAGERY_BUDGET_SECONDS` (default 240), `ANALYST_TOKEN`, `ALERT_*` thresholds, `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`, `ALERT_WEBHOOK_URL` / `ALERT_WEBHOOK_SECRET`, `SMTP_*` / `ALERT_EMAIL_FROM` / `ALERT_EMAIL_TO`, `VITE_TILE_URL`. Never commit `.env`.
 
 ## Known limitations
 

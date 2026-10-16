@@ -106,6 +106,7 @@ Regenerate: `python industrial-data/scripts/evaluate.py [--refresh-features] && 
 | 7 | Replay mode: archived FIRMS for documented incidents through the live pipeline on a virtual clock; demo video | **done**: 3 incidents + a gas flare + a Punjab burning day, all as expected, recorded in [the demo video](docs/demo/thermotrace_replay_demo.mp4); but only **5 of the 22 detected verified incidents** alert (see [docs/REPLAY.md](docs/REPLAY.md)) |
 | 8 | Judge-facing product: zoom-dependent map, dashboard tab, PDF incident report, hosted demo, video + deck | **done except hosting**: map, dashboard, PDF report, 2-minute video and 6-slide deck are built and tested; the one-VM demo (Caddy HTTPS, read-only user, rate limits) is **ready and checked locally but not deployed** - no VM or domain - see [Judge-facing product](#judge-facing-product) |
 | 9 | NTRO-grade deployment: accounts + roles + audit log, offline mode (self-hosted PMTiles basemap, cached land cover and scenes, no outbound calls except FIRMS), rate limiting, request logs, backup/restore | **done and exercised on a second local stack**; OIDC only through a reverse proxy and **not tested against a real identity provider**; no real VM, no penetration test - see [Hardened deployment](#hardened-deployment) |
+| 10-14 | Go live, run unattended, many users, alert quality, finalise | **planned** - see [docs/GO_LIVE_PLAN.md](docs/GO_LIVE_PLAN.md) |
 
 ## Baseline: what is normal for this place
 

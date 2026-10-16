@@ -138,9 +138,17 @@ def test_exports_and_reports_are_audited_before_the_download_starts(api, db, mon
     from backend.app.services import imagery, report
     monkeypatch.setattr(imagery, "chip_for", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("offline")))
     monkeypatch.setattr(report, "_http", lambda url: (_ for _ in ()).throw(OSError("offline")))
+    from backend.app.api import routes
+
+    class NoSnapshot:                                   # CI has no thermal snapshot; the export only has to be audited
+        name = "stub"
+
+        def list_sources(self, flt, limit, offset):
+            return [], 0
+    monkeypatch.setattr(routes, "_thermal_backend", lambda: NoSnapshot())
     as_user(api, "asha")
     before = len(audit_actions(db, "export.%"))
-    api.get("/api/thermal/export?format=geojson&min_frp=5")
+    assert api.get("/api/thermal/export?format=geojson&min_frp=5").status_code == 200
     with db.cursor() as cur:
         cur.execute("SELECT min(alert_id) FROM alerts WHERE source_id = 's9'")
         aid = cur.fetchone()[0]

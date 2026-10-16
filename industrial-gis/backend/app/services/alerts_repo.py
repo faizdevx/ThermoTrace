@@ -38,10 +38,10 @@ def get_alert(alert_id: int) -> dict[str, Any] | None:
         conn.close()
 
 
-def decide(alert_id: int, decision: str, note: str | None, analyst: str | None) -> dict[str, Any]:
+def decide(alert_id: int, decision: str, note: str | None, analyst: str | None, audit=None) -> dict[str, Any]:
     conn = _conn()
     try:
-        return store.record_decision(conn, alert_id, decision, note, analyst)
+        return store.record_decision(conn, alert_id, decision, note, analyst, after=audit)
     finally:
         conn.close()
 

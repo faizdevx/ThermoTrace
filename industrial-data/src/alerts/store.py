@@ -235,8 +235,9 @@ _LABEL_UPSERT = (
     "detail = EXCLUDED.detail, created_at = NOW()")
 
 
-def record_decision(conn, alert_id: int, decision: str, note: str | None, analyst: str | None) -> dict:
-    """Store the decision and mirror it into ``labels`` (one row per alert, latest decision wins)."""
+def record_decision(conn, alert_id: int, decision: str, note: str | None, analyst: str | None, after: Callable | None = None) -> dict:
+    """Store the decision and mirror it into ``labels`` (one row per alert, latest decision wins).
+    ``after(cursor, result)`` runs inside the same transaction (the API writes the audit entry there: both commit or neither)."""
     if decision not in DECISIONS:
         raise ValueError(f"decision must be one of {sorted(DECISIONS)}")
     note = (note or "").strip()[:2000] or None
@@ -257,5 +258,8 @@ def record_decision(conn, alert_id: int, decision: str, note: str | None, analys
                   "p_fire": a[6], "frp_z": a[7], "site_ref": a[8], "is_test": a[0]}
         cur.execute(_LABEL_UPSERT, (label_id, first, last, DECISIONS[decision], f"analyst:alert-{alert_id}",
                                     f"analyst:{analyst or 'unknown'}", ANALYST_RULE_VERSION, _json(detail), alert_id))
+        result = {"alert_id": alert_id, "decision": decision, "label_id": label_id, "label": DECISIONS[decision]}
+        if after is not None:
+            after(cur, result)
     conn.commit()
-    return {"alert_id": alert_id, "decision": decision, "label_id": label_id, "label": DECISIONS[decision]}
+    return result

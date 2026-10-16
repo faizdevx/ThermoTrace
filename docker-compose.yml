@@ -53,6 +53,18 @@ services:
       THERMAL_DATA_DIR: /data/thermal/live
       ANALYST_TOKEN: ${ANALYST_TOKEN:-}
       REPORT_TILE_URL: ${REPORT_TILE_URL:-}
+      AUTH_MODE: ${AUTH_MODE:-off}                      # off | local | proxy (docs/SECURITY.md)
+      SESSION_IDLE_MINUTES: ${SESSION_IDLE_MINUTES:-60}
+      SESSION_MAX_HOURS: ${SESSION_MAX_HOURS:-12}
+      COOKIE_SECURE: ${COOKIE_SECURE:-auto}
+      AUTH_PROXY_SECRET: ${AUTH_PROXY_SECRET:-}
+      AUTH_PROXY_ADMIN_GROUP: ${AUTH_PROXY_ADMIN_GROUP:-thermotrace-admin}
+      AUTH_PROXY_ANALYST_GROUP: ${AUTH_PROXY_ANALYST_GROUP:-thermotrace-analyst}
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-0}
+      RATE_LIMIT: ${RATE_LIMIT:-true}
+      RATE_GENERAL_PER_MIN: ${RATE_GENERAL_PER_MIN:-600}
+      RATE_HEAVY_PER_MIN: ${RATE_HEAVY_PER_MIN:-12}
+      RATE_LOGIN_PER_MIN: ${RATE_LOGIN_PER_MIN:-10}
     volumes:
       - thermaldata:/data/thermal:ro
     ports:
@@ -215,6 +227,7 @@ services:
       dockerfile: docker/frontend.Dockerfile
       args:
         VITE_TILE_URL: ${VITE_TILE_URL:-}
+        VITE_PMTILES_URL: ${VITE_PMTILES_URL:-}
     ports:
       - "127.0.0.1:${WEB_PORT:-8080}:80"
     depends_on:

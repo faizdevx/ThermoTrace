@@ -39,6 +39,13 @@ explicit `--db`, because it empties those tables.
 Check from outside: `curl -I https://$DOMAIN/`, `curl https://$DOMAIN/api/dashboard`, and
 `curl -X POST https://$DOMAIN/api/alerts/1/decision -d '{}'` must answer 403.
 
+## From demo to a real deployment
+
+The compose files default to the public read-only demo (`DEMO_READONLY=true`, no accounts). For a deployment with named users set
+`DEMO_READONLY=false` and `AUTH_MODE=local` (accounts, roles, audit log: [SECURITY.md](SECURITY.md)); create the first admin with
+`docker compose exec api python -m backend.app.users create --username NAME --role admin`. Add `-f docker-compose.offline.yml` for a site with no
+internet beyond FIRMS ([OFFLINE.md](OFFLINE.md)). Schedule `deploy/pg_backup.py` (systemd units in `deploy/`).
+
 ## Measured locally (stack `ttprod`, 2026-10-16)
 
 * `GET /api/health` 200 in 0.2 s, `/api/dashboard` 200 in 0.07 s through Caddy + nginx; response headers `Strict-Transport-Security`, `X-Content-Type-Options`, `X-Frame-Options`, no `Server`.

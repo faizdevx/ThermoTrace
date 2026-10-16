@@ -7,9 +7,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.app.api.auth_routes import router as auth_router
 from backend.app.api.routes import register_error_handlers
 from backend.app.api.routes import router as api_router
 from backend.app.config import get_settings
+from backend.app.security.gate import gate
 from backend.app.services import events, thermal_repo
 
 logging.basicConfig(
@@ -19,6 +21,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
+
+try:                                     # Docker image: src/netguard.py is copied next to the backend
+    from src import netguard
+except ImportError:                      # development checkout
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "industrial-data"))
+    from src import netguard
+if netguard.install_from_env():
+    logger.info("OFFLINE_MODE: this API refuses every outbound connection except the FIRMS hosts and the private network")
 
 
 @asynccontextmanager
@@ -59,9 +71,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,
     allow_credentials=False,  # no cookies/sessions are used
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "X-Admin-Token", "X-Analyst-Token", "Last-Event-ID"],
-    expose_headers=["X-Total-Count", "X-Data-Revision", "Content-Disposition"],
+    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Admin-Token", "X-Analyst-Token", "X-Requested-With", "X-Request-ID", "Last-Event-ID"],
+    expose_headers=["X-Total-Count", "X-Data-Revision", "Content-Disposition", "X-Request-ID"],
 )
 
 @app.middleware("http")
@@ -73,6 +85,9 @@ async def read_only_demo(request, call_next):
     return await call_next(request)
 
 
+app.middleware("http")(gate)      # added last = outermost: request id + access log, rate limits, authentication, CSRF header
+
+app.include_router(auth_router)
 app.include_router(api_router)
 register_error_handlers(app)
 

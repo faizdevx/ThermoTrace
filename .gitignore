@@ -228,3 +228,5 @@ logs/
 .env.*
 !.env.example
 !**/.env.example
+backups/
+demo-bundle/

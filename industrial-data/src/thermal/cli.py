@@ -134,6 +134,11 @@ def refresh_once(out_dir: Path, window_days: int, use_landcover: bool = True, in
             # source file published -> our commit (the pipeline's own latency; satellite->file latency is upstream)
             ingest_latency_seconds=(finished - published).total_seconds() if published else None)
         logger.info("thermal refresh ok: %d sources, latest detection %s", len(result.sources), latest)
+        from src import netguard
+        if netguard.enabled():
+            st = netguard.status()
+            store.write_status(out_dir, offline=st)
+            logger.info("offline mode: external hosts reached %s, refused %s", st["allowed_external_seen"], st["blocked"])
         return status
     except Exception as exc:  # noqa: BLE001
         prev = store.read_status(out_dir)
@@ -209,6 +214,8 @@ def main(argv: list[str] | None = None) -> int:
     replay_mod.add_arguments(ap)
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    from src import netguard
+    netguard.install_from_env()          # OFFLINE_MODE=true: nothing but the FIRMS hosts and the private network
     out = Path(args.out)
 
     if args.command == "replay":

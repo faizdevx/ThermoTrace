@@ -1,0 +1,20 @@
+# Offline overlay:  docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.offline.yml up -d --build
+# The stack then makes no outbound connection except to the NASA FIRMS hosts (see docs/OFFLINE.md): the vector basemap is the PMTiles
+# file in ./data/basemap (python deploy/make_basemap.py), fonts are bundled, land cover and Sentinel/Landsat chips are served from
+# the caches that were filled while online (python industrial-data/scripts/offline_prefetch.py).
+services:
+  api:
+    environment:
+      OFFLINE_MODE: "true"
+      PMTILES_FILE: /basemap/india.pmtiles
+    volumes:
+      - ./data/basemap:/basemap:ro
+  thermal:
+    environment:
+      OFFLINE_MODE: "true"
+  frontend:
+    build:
+      args:
+        VITE_PMTILES_URL: /basemap/india.pmtiles
+    volumes:
+      - ./data/basemap:/basemap:ro

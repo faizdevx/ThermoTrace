@@ -10,11 +10,12 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Iterator
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.exc import DBAPIError, OperationalError
 
 from backend.app.config import get_settings
+from backend.app.security import audit as audit_log, deps as sec
 from backend.app.db import check_db_connection
 from backend.app.services import catalog, events, facilities_repo, imagery, sync_status, thermal_repo
 from backend.app.services import postgis_repo as repo
@@ -31,6 +32,20 @@ FILTER_KEYS = ("bbox", "state", "district", "industry_type", "status", "confiden
 
 def _live() -> bool:
     return get_settings().data_mode == "postgis"
+
+
+def _audit_export(request: Request | None, action: str, detail: dict[str, Any]) -> None:
+    """Every download is written to the audit log before the first byte is sent."""
+    if request is None:
+        return
+    if get_settings().auth_mode == "off" and not _live():
+        return
+    try:
+        sec.audit_event(request, action, None, detail)
+    except Exception:  # noqa: BLE001
+        if get_settings().auth_mode != "off":
+            raise HTTPException(status_code=503, detail="Could not write the audit log; the export was refused.") from None
+        logger.warning("export not audited (no audit log)")
 
 
 def _filters(**kwargs: Any) -> dict[str, Any]:
@@ -158,8 +173,10 @@ def export_industries(
     industry_type: str | None = None,
     status: str | None = None,
     confidence: str | None = None,
+    request: Request = None,
+    _user=Depends(sec.require("analyst")),
 ):
-    """Stream EVERY site matching the filters (no pagination, no silent truncation)."""
+    """Stream EVERY site matching the filters (no pagination, no silent truncation). Audited."""
     filters = _filters(q=q, bbox=bbox, state=state, district=district,
                        industry_type=industry_type, status=status, confidence=confidence)
     parse_bbox(bbox)
@@ -173,6 +190,7 @@ def export_industries(
         total, revision = len(sites), 0
         stream = iter(_synthetic_export(sites, format))
     media = "text/csv; charset=utf-8" if format == "csv" else "application/geo+json"
+    _audit_export(request, "export.sites", {"format": format, "filters": filters, "rows": total})
     return StreamingResponse(
         stream, media_type=media,
         headers={
@@ -315,18 +333,23 @@ def sync_history(source: str | None = None, limit: int = Query(default=20, ge=1,
 
 @router.post("/admin/sync/trigger")
 def admin_trigger(
+    request: Request,
     payload: dict[str, Any] | None = None,
     x_admin_token: str | None = Header(default=None),
+    _user=Depends(sec.require("admin")),
 ) -> dict[str, Any]:
-    """Ask the worker to run a source now. Requires ADMIN_TOKEN; the API never runs jobs itself."""
-    token = get_settings().admin_token
-    if not token:
-        raise HTTPException(status_code=503, detail="Admin trigger is disabled (ADMIN_TOKEN not set).")
-    if not x_admin_token or not secrets.compare_digest(x_admin_token, token):
-        raise HTTPException(status_code=401, detail="Invalid admin token.")
+    """Ask the worker to run a source now. AUTH_MODE=off: needs ADMIN_TOKEN; otherwise the admin role. The API never runs jobs itself."""
+    if get_settings().auth_mode == "off":
+        token = get_settings().admin_token
+        if not token:
+            raise HTTPException(status_code=503, detail="Admin trigger is disabled (ADMIN_TOKEN not set).")
+        if not x_admin_token or not secrets.compare_digest(x_admin_token, token):
+            raise HTTPException(status_code=401, detail="Invalid admin token.")
     source = (payload or {}).get("source", "openstreetmap")
     if not _live() or not repo.request_manual_sync(str(source)):
         raise HTTPException(status_code=404, detail="Unknown or disabled source.")
+    if get_settings().auth_mode != "off":
+        sec.audit_event(request, "admin.sync_trigger", str(source))
     return {"requested": True, "source": source}
 
 
@@ -424,6 +447,18 @@ def thermal_model() -> dict[str, Any]:
     return {"available": False, "reason": "No trained model registered. Run: python industrial-data/scripts/evaluate.py"}
 
 
+@router.get("/system/offline")
+def system_offline() -> dict[str, Any]:
+    """Offline mode: whether it is on, which hosts may be reached, and what this process tried to reach and was refused."""
+    import os
+    try:
+        from src import netguard
+    except ImportError:
+        return {"offline": False}
+    pm = os.getenv("PMTILES_FILE", "/basemap/india.pmtiles")
+    return {**netguard.status(), "worker": thermal_repo.read_worker_offline(), "basemap": {"pmtiles_file": pm, "present": os.path.exists(pm)}}
+
+
 @router.get("/dashboard")
 def dashboard() -> dict[str, Any]:
     """Alerts today, class mix over time, top states and the model card in one response (the dashboard tab)."""
@@ -473,8 +508,8 @@ def alert_detail(alert_id: int) -> dict[str, Any]:
 
 
 @router.get("/alerts/{alert_id}/report.pdf")
-def alert_report(alert_id: int, imagery: bool = True) -> Response:
-    """One-page-ish incident report for the alert: maps, imagery, reasons, timeline, decisions."""
+def alert_report(alert_id: int, request: Request, imagery: bool = True, _user=Depends(sec.require("analyst"))) -> Response:
+    """Incident report for the alert: maps, imagery, reasons, timeline, decisions. Audited."""
     if not _live():
         raise HTTPException(status_code=404, detail="Alerts need the PostGIS stack.")
     from backend.app.services import alerts_repo, report
@@ -489,18 +524,26 @@ def alert_report(alert_id: int, imagery: bool = True) -> Response:
         except Exception as exc:  # noqa: BLE001 - a report without imagery beats no report
             logger.warning("report imagery for alert %s unavailable: %s", alert_id, exc)
     pdf = report.build_pdf(a, img)
+    _audit_export(request, "export.report", {"alert_id": alert_id, "bytes": len(pdf)})
     return Response(content=pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="thermotrace-alert-{alert_id}.pdf"'})
 
 
 @router.post("/alerts/{alert_id}/decision")
-def alert_decision(alert_id: int, payload: dict[str, Any], x_analyst_token: str | None = Header(default=None)) -> dict[str, Any]:
-    """Confirm / reject / unsure. Writes the decision and a row in ``labels`` (analyst-v1) for retraining."""
-    token = get_settings().analyst_token
-    if not token:
-        raise HTTPException(status_code=503, detail="Analyst decisions are disabled (ANALYST_TOKEN not set).")
-    if not x_analyst_token or not secrets.compare_digest(x_analyst_token, token):
-        raise HTTPException(status_code=401, detail="Invalid analyst token.")
+def alert_decision(alert_id: int, payload: dict[str, Any], request: Request, x_analyst_token: str | None = Header(default=None),
+                   user=Depends(sec.require("analyst"))) -> dict[str, Any]:
+    """Confirm / reject / unsure. Writes the decision, a row in ``labels`` (analyst-v1) and an audit entry, in one transaction.
+    AUTH_MODE=off: needs ANALYST_TOKEN and the name comes from the request; otherwise the analyst role and the signed-in user."""
+    s = get_settings()
+    if s.auth_mode == "off":
+        token = s.analyst_token
+        if not token:
+            raise HTTPException(status_code=503, detail="Analyst decisions are disabled (ANALYST_TOKEN not set).")
+        if not x_analyst_token or not secrets.compare_digest(x_analyst_token, token):
+            raise HTTPException(status_code=401, detail="Invalid analyst token.")
+        analyst = payload.get("analyst")
+    else:
+        analyst = user["username"]
     if not _live():
         raise HTTPException(status_code=404, detail="Alerts need the PostGIS stack.")
     from backend.app.services import alerts_repo
@@ -508,7 +551,11 @@ def alert_decision(alert_id: int, payload: dict[str, Any], x_analyst_token: str 
     if decision not in alerts_repo.DECISIONS:
         raise HTTPException(status_code=422, detail=f"decision must be one of {list(alerts_repo.DECISIONS)}")
     try:
-        out = alerts_repo.decide(alert_id, decision, payload.get("note"), payload.get("analyst"))
+        actor, role = sec.who(request)
+        ip = sec.ip_of(request)
+        out = alerts_repo.decide(alert_id, decision, payload.get("note"), analyst, audit=lambda cur, o: audit_log.record_cur(
+            cur, actor if role else (analyst or "anonymous"), role, "alert.decision", str(alert_id),
+            {"decision": decision, "note": (payload.get("note") or "")[:2000] or None, "label_id": o["label_id"], "label": o["label"]}, ip))
     except LookupError:
         raise HTTPException(status_code=404, detail="Unknown alert.") from None
     return out
@@ -605,10 +652,14 @@ def thermal_export(
     thermal_class: str | None = None, bbox: str | None = None, state: str | None = None,
     site_kind: str | None = None, min_frp: float | None = Query(default=None, ge=0),
     alerts_only: bool = False, hours: int | None = Query(default=None, ge=1, le=24 * 30),
+    request: Request = None, _user=Depends(sec.require("analyst")),
 ):
+    """Download the thermal sources matching the filters. Audited."""
     backend = _thermal_backend()
     flt = _thermal_filters(thermal_class, bbox, state, min_frp, alerts_only, hours, site_kind)
     features, total = backend.list_sources(flt, 1_000_000, 0)
+    used = dict(thermal_class=thermal_class, bbox=bbox, state=state, site_kind=site_kind, min_frp=min_frp, alerts_only=alerts_only, hours=hours)
+    _audit_export(request, "export.thermal", {"format": format, "filters": {k: v for k, v in used.items() if v not in (None, False)}, "rows": total})
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     return StreamingResponse(
         thermal_repo.export_rows(features, format),

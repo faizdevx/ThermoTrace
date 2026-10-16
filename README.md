@@ -103,7 +103,7 @@ Regenerate: `python industrial-data/scripts/evaluate.py [--refresh-features] && 
 | 6 | Industrial-fire alerting (rule, severity, dedupe per facility per 6 h), webhook + Telegram + email delivery, analyst inbox (Confirm / Reject / Unsure + note) writing to `labels`, incident timeline | **done**; delivery verified against a local fake Telegram server, **not yet against a real bot** (needs your `TELEGRAM_BOT_TOKEN`) - see [Alerting](#alerting-and-the-analyst-loop) |
 | 7 | Replay mode: archived FIRMS for documented incidents through the live pipeline on a virtual clock; demo video | **done**: 3 incidents + a gas flare + a Punjab burning day, all as expected, recorded in [the demo video](docs/demo/thermotrace_replay_demo.mp4); but only **5 of the 22 detected verified incidents** alert (see [docs/REPLAY.md](docs/REPLAY.md)) |
 | 8 | Judge-facing product: zoom-dependent map, dashboard tab, PDF incident report, hosted demo, video + deck | **done except hosting**: map, dashboard, PDF report, 2-minute video and 6-slide deck are built and tested; the one-VM demo (Caddy HTTPS, read-only user, rate limits) is **ready and checked locally but not deployed** - no VM or domain - see [Judge-facing product](#judge-facing-product) |
-| 9 | remaining items | planned - see [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) |
+| 9 | NTRO-grade deployment: accounts + roles + audit log, offline mode (self-hosted PMTiles basemap, cached land cover and scenes, no outbound calls except FIRMS), rate limiting, request logs, backup/restore | **done and exercised on a second local stack**; OIDC only through a reverse proxy and **not tested against a real identity provider**; no real VM, no penetration test - see [Hardened deployment](#hardened-deployment) |
 
 ## Baseline: what is normal for this place
 
@@ -277,6 +277,22 @@ _The inbox lists alerts (open first, then by severity). Opening one shows the in
 
 **Limits.** No real Telegram bot, SMTP server or webhook receiver was used in testing (local fakes and mocks only); `ANALYST_TOKEN` is one shared secret, not per-user login; the dashboard's top "Alerts" card still counts the older `alert_level` flag, not these alerts; the server does not yet retrain on analyst labels - they are collected and queryable.
 
+## Hardened deployment
+
+Three requirements, each with what was built, what was run, and what was not. Detail: [docs/SECURITY.md](docs/SECURITY.md), [docs/OFFLINE.md](docs/OFFLINE.md), [docs/DEPLOY.md](docs/DEPLOY.md).
+
+| Requirement | State |
+|---|---|
+| **Auth, roles, audit** | `AUTH_MODE=local` (accounts in PostGIS, scrypt, lockout after 5 failures, `HttpOnly; SameSite=Strict; Secure` cookie, CSRF header, idle and absolute session limits) or `proxy` (identity from an OIDC reverse proxy, trusted only with a shared secret). Roles **viewer** (read), **analyst** (decisions, downloads, PDF reports), **admin** (accounts, audit, sync). The analyst on a decision is the signed-in user. Append-only, **hash-chained audit log** of sign-ins, decisions (written in the same transaction as the decision), every export and report, account changes and denied requests; verify button in the new Admin tab. OIDC is **not built into the API** and was tested with simulated proxy headers only |
+| **Offline mode** | `docker-compose.offline.yml`: **self-hosted PMTiles vector basemap** (India z0-12, 692 MB, from the Protomaps OSM build; `deploy/make_basemap.py`), bundled fonts, land-cover and Sentinel/Landsat caches (`python -m src.thermal.prefetch`), PDF maps drawn from the same file, and a socket guard that refuses every outbound connection except the FIRMS hosts. Run: a browser that cannot resolve any outside name used the whole UI (59 requests, all localhost, none failed); a full worker cycle reached only `firms.modaps.eosdis.nasa.gov`; the guard also caught a real hidden download (geoBoundaries) on the first cycle |
+| **Rate limiting, request logging, backup/restore** | nginx limits at the edge plus per-address limits in the API (sign-in 10/min, imagery / PDF / exports 12/min, 429 with Retry-After); one JSON access line per API request (request id, user, role, path without query, status, ms) and per nginx request, rotated by Docker; `deploy/pg_backup.py` backup / verify / restore (SHA-256 + manifest + row counts, optional AES-256, retention, restore-test into a scratch database, refuses to overwrite the live database), nightly systemd timer. Exercised: backup -> encrypted -> verify (11 tables matched) -> tampered file refused -> wrong passphrase refused -> live restore refused |
+
+![Sign-in page](docs/images/login_page.png)
+![Admin tab: accounts and the hash-chained audit log](docs/images/admin_panel.png)
+![Map on the self-hosted vector basemap with every outside host unreachable](docs/images/offline_map.png)
+
+**What this does not cover**: no real identity provider, no MFA or password-reset mail, no penetration test, no multi-process rate-limit store, the audit chain does not stop an administrator from deleting the whole database (keep its head hash elsewhere), the land-cover prefetch was run for the 3,073 current sources only (497 cells of the next cycle stayed unknown), and the socket guard is defence in depth, not a network firewall.
+
 ## Judge-facing product
 
 | Deliverable | State |
@@ -427,6 +443,9 @@ Development without Docker for the app: run PostGIS yourself, then `uvicorn back
 | `GET /facilities`, `/facilities/{id}` | merged facilities (`bbox,kind,source,limit`) with per-source licences; detail adds the OSM footprint and every source record |
 | `GET /sync/status`, `/sync/history` | per-source freshness (`live/syncing/delayed/offline/not_configured/awaiting_setup`) |
 | `GET /events` | Server-Sent Events: `hello`, `revision`, `sync`, `thermal`; the UI falls back to 10 s polling |
+| `POST /auth/login`, `/auth/logout`, `GET /auth/me`, `POST /auth/password` | local accounts (cookie session); `me` also tells the UI the mode and offline flag |
+| `GET/POST/PATCH /admin/users`, `GET /admin/audit`, `GET /admin/audit/verify` | admin role: accounts, the audit log and its chain check |
+| `GET /system/offline` | offline mode status: allowed hosts, refused attempts, basemap file |
 | `GET /dashboard` | alerts today, class mix over time, top states, model card |
 | `GET /alerts/{id}/report.pdf` | PDF incident report (maps, imagery, reasons, timeline) |
 | `GET /alerts`, `/alerts/{id}` | alert inbox (`status=open|confirmed|rejected|unsure`); detail adds the incident timeline and decisions |
@@ -446,11 +465,11 @@ TEST_DATABASE_URL=postgresql://user:pw@localhost:5432/postgres python -m pytest 
 cd industrial-gis/frontend && npx tsc --noEmit && npm test && npm run build
 ```
 
-Results on the development machine (2026-10-15): `industrial-data/tests` 350 passed with PostGIS available (about 310 without; includes the ML, imagery, alert and replay tests); API synthetic suite 74 passed (dashboard, PDF report, read-only mode); API against PostGIS 40 passed (alert inbox, report, dashboard); frontend `tsc` clean, vitest 64 passed. GitHub Actions: the pushes to `main` completed with `success`.
+Results on the development machine (2026-10-16): `industrial-data/tests` 362 passed with PostGIS available (ML, imagery, alert, replay, offline and backup-tool tests); API synthetic suite 82 passed (dashboard, PDF report, read-only mode, security units); API against PostGIS 54 passed (alert inbox, report, dashboard, accounts / roles / audit); frontend `tsc` clean, vitest 72 passed. GitHub Actions: the pushes to `main` completed with `success`.
 
 ## Configuration
 
-See `.env.example`. Key variables: `POSTGRES_*`, `ALLOWED_ORIGINS`, `ADMIN_TOKEN`, `OSM_REGION`, `OSM_POLL_INTERVAL_SECONDS`, `OSM_FRESHNESS_TARGET_SECONDS`, `FIRMS_MAP_KEY` (optional), `THERMAL_INTERVAL_SECONDS` (default 600), `THERMAL_FACILITIES_GEOJSON`, `FACILITIES_DIR`, `FACILITIES_BACKEND` (`auto`/`files`/`postgis`), `THERMAL_WINDOW_DAYS`, `THERMAL_IMAGERY` (on by default), `THERMAL_IMAGERY_DIR`, `THERMAL_IMAGERY_PER_CYCLE` (default 4), `THERMAL_IMAGERY_BUDGET_SECONDS` (default 240), `ANALYST_TOKEN`, `ALERT_*` thresholds (incl. `ALERT_VETO_CROP_FRACTION`, `ALERT_VETO_NIGHT_FRACTION`), `REPLAY_DATABASE_URL`, `DEMO_READONLY`, `DOMAIN` (production compose), `REPORT_TILE_URL`, `VITE_TILE_URL` (build arg), `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`, `ALERT_WEBHOOK_URL` / `ALERT_WEBHOOK_SECRET`, `SMTP_*` / `ALERT_EMAIL_FROM` / `ALERT_EMAIL_TO`, `VITE_TILE_URL`. Never commit `.env`.
+See `.env.example`. Key variables: `POSTGRES_*`, `ALLOWED_ORIGINS`, `ADMIN_TOKEN`, `OSM_REGION`, `OSM_POLL_INTERVAL_SECONDS`, `OSM_FRESHNESS_TARGET_SECONDS`, `FIRMS_MAP_KEY` (optional), `THERMAL_INTERVAL_SECONDS` (default 600), `THERMAL_FACILITIES_GEOJSON`, `FACILITIES_DIR`, `FACILITIES_BACKEND` (`auto`/`files`/`postgis`), `THERMAL_WINDOW_DAYS`, `THERMAL_IMAGERY` (on by default), `THERMAL_IMAGERY_DIR`, `THERMAL_IMAGERY_PER_CYCLE` (default 4), `THERMAL_IMAGERY_BUDGET_SECONDS` (default 240), `ANALYST_TOKEN`, `ALERT_*` thresholds (incl. `ALERT_VETO_CROP_FRACTION`, `ALERT_VETO_NIGHT_FRACTION`), `AUTH_MODE`, `SESSION_*`, `AUTH_PROXY_*`, `TRUSTED_PROXY_HOPS`, `RATE_*`, `OFFLINE_MODE`, `BACKUP_PASSPHRASE`, `REPLAY_DATABASE_URL`, `DEMO_READONLY`, `DOMAIN` (production compose), `REPORT_TILE_URL`, `VITE_TILE_URL` (build arg), `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`, `ALERT_WEBHOOK_URL` / `ALERT_WEBHOOK_SECRET`, `SMTP_*` / `ALERT_EMAIL_FROM` / `ALERT_EMAIL_TO`, `VITE_TILE_URL`. Never commit `.env`.
 
 ## Known limitations
 

@@ -1,0 +1,14 @@
+# systemd: nightly PostGIS backup with checksum + manifest, then a restore test into a scratch database.
+# Install:  sudo cp deploy/thermotrace-backup.{service,timer} /etc/systemd/system/ && sudo systemctl enable --now thermotrace-backup.timer
+# Put BACKUP_PASSPHRASE=... in /etc/thermotrace-backup.env (chmod 600), keep that file somewhere else as well: a backup without it is unreadable.
+[Unit]
+Description=ThermoTrace PostGIS backup and restore test
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/ThermoTrace
+EnvironmentFile=/etc/thermotrace-backup.env
+Environment=BACKUP_COMPOSE_ARGS=-f docker-compose.yml -f docker-compose.prod.yml
+ExecStart=/usr/bin/python3 deploy/pg_backup.py backup --out /var/backups/thermotrace --keep 14 --passphrase-env BACKUP_PASSPHRASE
+ExecStart=/bin/sh -c 'python3 deploy/pg_backup.py verify "$(ls -1t /var/backups/thermotrace/*.dump.enc | head -1)" --passphrase-env BACKUP_PASSPHRASE'

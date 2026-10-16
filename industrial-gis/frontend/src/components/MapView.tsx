@@ -6,6 +6,7 @@ import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import 'leaflet.markercluster';
 import { fetchFacility } from '@/services/api';
 import { facilityPopupHtml } from '@/components/facilityPopup';
+import { createBasemap } from '@/components/basemap';
 import { cellOpacity, DENSITY_ZOOM, dominantClass, splitForZoom } from '@/components/thermalDensity';
 import type {
   BoundaryFeature,
@@ -162,7 +163,7 @@ export function MapView({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    const map = L.map(containerRef.current, { center: [22.5, 80.5], zoom: 5, zoomControl: false, zoomSnap: 0.5 });
+    const map = L.map(containerRef.current, { center: [22.5, 80.5], zoom: 5, zoomControl: false, zoomSnap: 0.5, maxZoom: 19 });
     // the whole country at a glance, whatever the screen: mainland India plus a margin
     map.fitBounds([[7, 68], [36, 97.5]], { padding: [4, 4] });
     map.createPane('boundaries').style.zIndex = '350';
@@ -180,16 +181,8 @@ export function MapView({
     // dev builds only: lets scripts/capture_dashboard.py drive the map for README screenshots
     if (import.meta.env.DEV) (window as unknown as { __thermotraceMap?: L.Map }).__thermotraceMap = map;
 
-    // Basemap: OpenStreetMap standard tiles (https://operations.osmfoundation.org/policies/tiles/ - fine for
-    // light use; set VITE_TILE_URL to your own tile provider for production traffic). Map DATA: OSM (ODbL).
-    const tileUrl = (import.meta.env.VITE_TILE_URL as string | undefined) || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-    L.tileLayer(tileUrl, {
-      attribution:
-        '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · ' +
-        'fire data <a href="https://firms.modaps.eosdis.nasa.gov/">NASA FIRMS</a> · ' +
-        'land cover <a href="https://esa-worldcover.org/">ESA WorldCover</a>',
-      maxZoom: 19,
-    }).addTo(map);
+    // Basemap: the self-hosted PMTiles vector basemap when VITE_PMTILES_URL is set, else OpenStreetMap raster tiles (see basemap.ts)
+    createBasemap().addTo(map);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
 
     const clusterGroup = (L as unknown as {

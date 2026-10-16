@@ -18,12 +18,19 @@ services:
 
   db:
     ports: !reset []
+    logging: &logs
+      driver: json-file
+      options: { max-size: "20m", max-file: "10" }       # request logs (stdout of api) and the rest rotate instead of filling the disk
   api:
+    logging: *logs
     ports: !reset []
     environment:
-      DEMO_READONLY: "true"          # every POST/PUT/DELETE answers 403, whatever tokens are sent
+      # public read-only demo by default; for a real deployment set DEMO_READONLY=false AUTH_MODE=local (docs/SECURITY.md)
+      DEMO_READONLY: ${DEMO_READONLY:-true}          # true: every POST/PATCH/DELETE answers 403, whatever tokens are sent
       ANALYST_TOKEN: ""
       ADMIN_TOKEN: ""
+      TRUSTED_PROXY_HOPS: "2"                        # caddy -> nginx -> api: the client address is two entries from the right of X-Forwarded-For
+      COOKIE_SECURE: "true"
       ALLOWED_ORIGINS: https://${DOMAIN:-localhost}
   frontend:
     ports: !reset []

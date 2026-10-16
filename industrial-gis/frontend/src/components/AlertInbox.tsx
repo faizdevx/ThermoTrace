@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { API_BASE, postAlertDecision } from '@/services/api';
 import { alertRow, decisionHint, DECISION_LABEL, SEVERITY_COLOR, STATUS_LABEL } from '@/components/alertView';
 import type { AlertsState } from '@/hooks/useAlerts';
+import { useAuth } from '@/hooks/useAuth';
 import type { AlertDecision, ThermalAlert } from '@/types/industrial';
 
 function stored(key: string, area: 'session' | 'local'): string {
@@ -22,7 +23,12 @@ function Decide({ alert, enabled, demo, onDone }: { alert: ThermalAlert; enabled
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const hint = decisionHint(enabled, token);
+  const auth = useAuth();
+  const hint = auth.enforced ? null : decisionHint(enabled, token);
+  if (auth.enforced && !auth.can('analyst')) {
+    return <p data-testid="role-hint" style={{ marginTop: 10, padding: 10, borderRadius: 10, background: '#f1f5f9', color: '#475569', fontSize: 12 }}>
+      You are signed in as <strong>{auth.user?.username}</strong> ({auth.user?.role}). Recording a decision needs the analyst role.</p>;
+  }
   if (demo) {
     return <p data-testid="demo-readonly" style={{ marginTop: 10, padding: 10, borderRadius: 10, background: '#f5f3ff', color: '#5b21b6', fontSize: 12 }}>Public read-only demo: analyst decisions (Confirm / Reject / Unsure) are disabled here. Run the stack yourself to record decisions into <code>labels</code>.</p>;
   }
@@ -33,7 +39,7 @@ function Decide({ alert, enabled, demo, onDone }: { alert: ThermalAlert; enabled
     try {
       store('tt-analyst-token', token, 'session');
       store('tt-analyst-name', analyst, 'local');
-      const r = await postAlertDecision(alert.alert_id, d, note, analyst, token);
+      const r = await postAlertDecision(alert.alert_id, d, note, auth.enforced ? (auth.user?.username ?? '') : analyst, auth.enforced ? '' : token);
       setMsg({ ok: true, text: `Recorded: ${DECISION_LABEL[d]}. Written to labels as "${r.label}" (${r.label_id}).` });
       setNote('');
       onDone();
@@ -47,7 +53,10 @@ function Decide({ alert, enabled, demo, onDone }: { alert: ThermalAlert; enabled
   const field: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '6px 8px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12, marginBottom: 6 };
   return (
     <div data-testid="decide" style={{ marginTop: 10, padding: 10, border: '1px solid #e2e8f0', borderRadius: 10 }}>
-      <div style={{ display: 'flex', gap: 6 }}>
+      {auth.enforced
+        ? <p data-testid="signed-in-as" style={{ margin: '0 0 6px', fontSize: 12, color: '#475569' }}>Decision recorded as <strong>{auth.user?.username}</strong> ({auth.user?.role}), logged in the audit trail.</p>
+        : null}
+      <div style={{ display: auth.enforced ? 'none' : 'flex', gap: 6 }}>
         <input aria-label="Analyst name" placeholder="Your name" value={analyst} onChange={e => setAnalyst(e.target.value)} style={field} />
         <input aria-label="Analyst token" placeholder="Analyst token" type="password" value={token} onChange={e => setToken(e.target.value)} style={field} />
       </div>
@@ -65,6 +74,7 @@ function Decide({ alert, enabled, demo, onDone }: { alert: ThermalAlert; enabled
 
 function Detail({ a, enabled, demo, onLocate, onDone }: { a: ThermalAlert; enabled: boolean; demo?: boolean; onLocate: (a: ThermalAlert) => void; onDone: () => void }) {
   const row = alertRow(a);
+  const auth = useAuth();
   return (
     <div data-testid="alert-detail">
       <p style={{ margin: '0 0 4px', fontSize: 13, color: '#334155' }}>{a.summary}</p>
@@ -73,10 +83,10 @@ function Detail({ a, enabled, demo, onLocate, onDone }: { a: ThermalAlert; enabl
         <button onClick={() => onLocate(a)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', fontSize: 12, cursor: 'pointer' }}>
           Show on map + satellite imagery
         </button>
-        <a data-testid="report-link" href={`${API_BASE}/alerts/${a.alert_id}/report.pdf`} download
+        {auth.can('analyst') && <a data-testid="report-link" href={`${API_BASE}/alerts/${a.alert_id}/report.pdf`} download
           style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #0f172a', background: '#0f172a', color: '#fff', fontSize: 12, textDecoration: 'none', fontWeight: 600 }}>
           Download PDF report
-        </a>
+        </a>}
       </div>
       <ol data-testid="alert-timeline" style={{ listStyle: 'none', padding: 0, margin: '10px 0 0', borderLeft: '2px solid #e2e8f0' }}>
         {(a.timeline ?? []).map((e, i) => (

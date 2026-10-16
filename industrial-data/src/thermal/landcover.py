@@ -14,6 +14,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from src import netguard
+
 logger = logging.getLogger(__name__)
 
 TILE_URL = ("https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/"
@@ -92,6 +94,11 @@ def sample_many(points: pd.DataFrame, cache_path: str | Path | None = None, work
 
     todo = sorted({k for k in keys if stale(k)})
     logger.info("land cover: %d cells to read (%d cached)", len(todo), len(set(keys)) - len(todo))
+    if todo and netguard.enabled():
+        # offline mode: WorldCover is read over HTTP by GDAL, which is not allowed. Uncached cells stay unknown (NaN) for this run and
+        # are NOT written to the cache, so they are read normally the next time the stack is online (or by scripts/offline_prefetch.py).
+        logger.warning("offline mode: %d land-cover cells are not cached and stay unknown", len(todo))
+        todo = []
 
     def work(key: str) -> tuple[str, dict]:
         lat, lon = (float(x) for x in key.split(","))

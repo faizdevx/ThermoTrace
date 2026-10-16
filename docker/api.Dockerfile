@@ -8,6 +8,7 @@ COPY industrial-gis/backend/ /srv/backend/
 # imagery core is shared with the worker (one implementation of the scene / index logic)
 COPY industrial-data/src/imagery/ /srv/src/imagery/
 COPY industrial-data/src/alerts/ /srv/src/alerts/
+COPY industrial-data/src/netguard.py /srv/src/netguard.py
 RUN touch /srv/src/__init__.py
 RUN useradd --create-home --uid 10001 thermo
 USER thermo

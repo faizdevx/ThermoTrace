@@ -53,6 +53,8 @@ def enrich_sources(src: pd.DataFrame, cache_dir: str | Path, per_cycle: int = 4,
     """Return ``(sources with imagery_* columns and imagery lines appended to reasons, stats)``."""
     out = src.copy().reset_index(drop=True)
     cache = core.DiskCache(cache_dir)
+    if core.netguard.enabled():          # offline mode: attach what is cached, compute nothing
+        per_cycle = 0
     stats = {"cached": 0, "computed": 0, "failed": 0, "candidates": 0, "budget_seconds": budget_seconds}
     results: dict[int, dict | None] = {}
     for i, r in out.iterrows():

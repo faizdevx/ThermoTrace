@@ -5,6 +5,9 @@
  * the nginx container proxy forward it to the FastAPI backend).
  */
 import type {
+  AuditEntry,
+  AuthMe,
+  AuthUser,
   DashboardData,
   AlertDecision,
   AlertList,
@@ -56,7 +59,7 @@ export class ApiError extends Error {
 
 async function requestJson<T>(
   path: string,
-  options: { timeoutMs?: number; signal?: AbortSignal; method?: 'GET' | 'POST'; body?: unknown; headers?: Record<string, string> } = {},
+  options: { timeoutMs?: number; signal?: AbortSignal; method?: 'GET' | 'POST' | 'PATCH'; body?: unknown; headers?: Record<string, string> } = {},
 ): Promise<T> {
   const controller = new AbortController();
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -69,7 +72,8 @@ async function requestJson<T>(
     const response = await fetch(`${API_BASE}${path}`, {
       signal: controller.signal,
       method: options.method ?? 'GET',
-      headers: { Accept: 'application/json', ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...options.headers },
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json', 'X-Requested-With': 'ThermoTrace', ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...options.headers },
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
     });
     if (!response.ok) {
@@ -79,6 +83,7 @@ async function requestJson<T>(
         if (typeof body.detail === 'string') message = body.detail;
         else if (body.detail !== undefined) message = JSON.stringify(body.detail);
       } catch { /* keep default */ }
+      if (response.status === 401 && !path.startsWith('/auth/')) window.dispatchEvent(new Event('tt-auth-required'));
       throw new ApiError(response.status, message, path);
     }
     return (await response.json()) as T;
@@ -210,10 +215,47 @@ export function postAlertDecision(
   id: number, decision: AlertDecision, note: string, analyst: string, token: string,
 ): Promise<{ alert_id: number; decision: AlertDecision; label_id: string; label: string }> {
   return requestJson(`/alerts/${id}/decision`, {
-    method: 'POST', body: { decision, note, analyst }, headers: { 'X-Analyst-Token': token },
+    method: 'POST', body: { decision, note, analyst }, headers: token ? { 'X-Analyst-Token': token } : {},
   });
 }
 
 export function fetchDashboard(signal?: AbortSignal): Promise<DashboardData> {
   return requestJson('/dashboard', { signal });
+}
+
+// ---- Phase 9: accounts, roles, audit ---------------------------------------------------------------------------------------
+export function fetchMe(signal?: AbortSignal): Promise<AuthMe> {
+  return requestJson('/auth/me', { signal });
+}
+
+export function login(username: string, password: string): Promise<{ user: AuthUser }> {
+  return requestJson('/auth/login', { method: 'POST', body: { username, password } });
+}
+
+export function logout(): Promise<{ ok: boolean }> {
+  return requestJson('/auth/logout', { method: 'POST', body: {} });
+}
+
+export function changePassword(current: string, next: string): Promise<{ ok: boolean }> {
+  return requestJson('/auth/password', { method: 'POST', body: { current, new: next } });
+}
+
+export function fetchUsers(signal?: AbortSignal): Promise<{ users: AuthUser[] }> {
+  return requestJson('/admin/users', { signal });
+}
+
+export function createUser(body: { username: string; password: string; role: string; display_name?: string }): Promise<{ user: AuthUser }> {
+  return requestJson('/admin/users', { method: 'POST', body });
+}
+
+export function updateUser(id: number, body: Partial<{ role: string; active: boolean; password: string; display_name: string }>): Promise<{ user: AuthUser }> {
+  return requestJson(`/admin/users/${id}`, { method: 'PATCH', body });
+}
+
+export function fetchAudit(params: { limit?: number; before?: number; action?: string; actor?: string } = {}, signal?: AbortSignal): Promise<{ entries: AuditEntry[] }> {
+  return requestJson(`/admin/audit${buildQuery(params as QueryFilters)}`, { signal });
+}
+
+export function verifyAudit(): Promise<{ ok: boolean; rows: number; first_bad_id: number | null; head: string | null }> {
+  return requestJson('/admin/audit/verify');
 }

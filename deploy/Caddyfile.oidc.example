@@ -1,0 +1,39 @@
+# AUTH_MODE=proxy with an OIDC proxy (oauth2-proxy) in front of the stack - example, not tested against a real identity provider.
+#
+# 1. Run oauth2-proxy (separate container) with your issuer, client id/secret, --set-xauthrequest=true and a group claim, listening on :4180.
+# 2. Set AUTH_MODE=proxy and AUTH_PROXY_SECRET=<long random string> for the api, and the same value as AUTH_PROXY_SECRET for caddy.
+# 3. Use this Caddyfile instead of deploy/Caddyfile.
+#
+# The api trusts X-Auth-Request-User / X-Auth-Request-Groups only when X-Auth-Proxy-Secret matches, so everything below hinges on
+# caddy being the only way in (the api and nginx publish no ports) and on the `request_header -` lines deleting what a client sends.
+{$DOMAIN:localhost} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# sign-in, callback and sign-out are served by oauth2-proxy itself
+	handle /oauth2/* {
+		reverse_proxy oauth2-proxy:4180
+	}
+
+	handle {
+		# never trust identity headers (or the shared secret) that a client sends
+		request_header -X-Auth-Request-User
+		request_header -X-Auth-Request-Groups
+		request_header -X-Auth-Proxy-Secret
+		forward_auth oauth2-proxy:4180 {
+			uri /oauth2/auth
+			copy_headers X-Auth-Request-User X-Auth-Request-Groups
+		}
+		reverse_proxy frontend:80 {
+			header_up X-Auth-Proxy-Secret {$AUTH_PROXY_SECRET}
+			flush_interval -1
+		}
+	}
+}

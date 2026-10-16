@@ -16,6 +16,8 @@ import { Dashboard } from '@/components/Dashboard';
 import { openCount } from '@/components/alertView';
 import { useAlerts } from '@/hooks/useAlerts';
 import { useNarrow } from '@/hooks/useNarrow';
+import { useAuth } from '@/hooks/useAuth';
+import { AdminPanel } from '@/components/AdminPanel';
 import { useThermal } from '@/hooks/useThermal';
 import {
   ApiError,
@@ -120,7 +122,8 @@ export default function App() {
   const alerts = useAlerts();
   const refreshAlerts = alerts.refresh;
   const [showInbox, setShowInbox] = useState(false);
-  const [view, setView] = useState<'map' | 'dashboard'>('map');
+  const [view, setView] = useState<'map' | 'dashboard' | 'admin'>('map');
+  const auth = useAuth();
   const narrow = useNarrow();
   const [layersOpen, setLayersOpen] = useState(false);
   const refreshThermal = thermal.refresh;
@@ -478,7 +481,7 @@ export default function App() {
           </span>
         )}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          {showSites && <ExportMenu
+          {showSites && auth.can('analyst') && <ExportMenu
             filters={scopeFilters}
             viewportBbox={viewport?.bbox ?? null}
             totalMatching={statistics?.total_sites ?? null}
@@ -504,14 +507,25 @@ export default function App() {
 
       {/* ── Map ─────────────────────────────────────────────────────────── */}
       <div role="tablist" aria-label="Views" style={{ flexShrink: 0, display: 'flex', gap: 6, padding: '8px 14px 0' }}>
-        {(['map', 'dashboard'] as const).map(v => (
+        {(['map', 'dashboard', ...(auth.enforced && auth.can('admin') ? ['admin' as const] : [])] as const).map(v => (
           <button key={v} role="tab" aria-selected={view === v} data-testid={`tab-${v}`} onClick={() => setView(v)}
             style={{ padding: '6px 16px', borderRadius: 99, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
               background: view === v ? '#0f172a' : 'rgba(255,255,255,0.7)', color: view === v ? '#fff' : '#334155' }}>
-            {v === 'map' ? 'Map' : 'Dashboard'}
+            {v === 'map' ? 'Map' : v === 'dashboard' ? 'Dashboard' : 'Admin'}
           </button>
         ))}
+        {auth.enforced && auth.user && (
+          <span data-testid="whoami" style={{ marginLeft: 'auto', alignSelf: 'center', fontSize: 12, color: '#475569', display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span className="hidden-mobile">{auth.user.display_name || auth.user.username} ({auth.user.role})</span>
+            <button onClick={() => auth.signOut()} style={{ padding: '4px 10px', borderRadius: 99, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: 12 }}>Sign out</button>
+          </span>
+        )}
       </div>
+      {view === 'admin' && auth.can('admin') && (
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '10px 14px 14px' }}>
+          <AdminPanel me={auth.user} localAccounts={auth.me?.auth_mode === 'local'} />
+        </div>
+      )}
       {view === 'dashboard' && (
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '10px 14px 14px' }}>
           <Dashboard onOpenInbox={() => { setView('map'); setShowInbox(true); }} />

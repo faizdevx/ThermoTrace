@@ -32,6 +32,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from src import netguard
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -485,6 +487,10 @@ def cached_analysis(source_id: str, lon: float, lat: float, last_seen: str, cach
             return _mem[key]
     cache = cache or DiskCache(default_cache_dir())
     hit = cache.get(source_id, last_seen)
+    if hit is None and netguard.enabled():          # offline mode: GDAL would open its own sockets; only cached scenes are served
+        return {"available": False, "offline": True, "reason": "Offline mode: no Sentinel-2 / Landsat scene is cached for this source "
+                "(scenes are fetched and cached while online, see docs/OFFLINE.md).", "search": {"max_cloud_percent": MAX_CLOUD, "window_days": WINDOW_DAYS},
+                "landsat": {"available": False, "reason": "Offline mode"}}
     if hit is None:
         when = _parse_time(str(last_seen))
         hit = analyse_source(lon, lat, when, first_seen=_parse_time(str(first_seen)) if first_seen else None, **kw)

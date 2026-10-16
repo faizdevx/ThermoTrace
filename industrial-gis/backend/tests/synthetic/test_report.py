@@ -66,3 +66,45 @@ def test_report_builds_offline_without_imagery(tmp_path, monkeypatch):
     pdf = report.build_pdf({**ALERT, "decisions": [], "timeline": [], "peak_frp": None, "peak_at": None},
                            {"available": False, "reason": "No Sentinel-2 scene under 30% cloud"}, fetch=down)
     assert pdf.startswith(b"%PDF")
+
+
+def _tiny_pmtiles(path, lat, lon):
+    """A one-tile vector basemap: a water polygon in the west half and a major road across the middle of the tile around (lat, lon)."""
+    import gzip
+
+    import mapbox_vector_tile
+    from pmtiles.tile import Compression, TileType, zxy_to_tileid
+    from pmtiles.writer import write
+
+    z = 12
+    x, y = (int(v) for v in report._tile_xy(lat, lon, z))
+    mvt = mapbox_vector_tile.encode([
+        {"name": "water", "features": [{"geometry": "POLYGON((0 0, 1000 0, 1000 4096, 0 4096, 0 0))", "properties": {"kind": "lake"}}]},
+        {"name": "roads", "features": [{"geometry": "LINESTRING(0 2048, 4096 2048)", "properties": {"kind": "major_road"}}]},
+    ], default_options={"y_coord_down": True})
+    with write(str(path)) as w:
+        w.write_tile(zxy_to_tileid(z, x, y), gzip.compress(mvt))
+        w.finalize({"tile_type": TileType.MVT, "tile_compression": Compression.GZIP, "min_zoom": z, "max_zoom": z, "min_lon_e7": 0, "min_lat_e7": 0,
+                    "max_lon_e7": 0, "max_lat_e7": 0, "center_zoom": z, "center_lon_e7": 0, "center_lat_e7": 0}, {})
+
+
+def test_offline_basemap_is_drawn_from_the_local_vector_file_without_any_network(tmp_path, monkeypatch):
+    lat, lon = 22.95, 72.63
+    f = tmp_path / "tiny.pmtiles"
+    _tiny_pmtiles(f, lat, lon)
+    monkeypatch.setattr(report, "PMTILES_FILE", str(f))
+    monkeypatch.setattr(report, "_http", lambda url: (_ for _ in ()).throw(AssertionError("offline mode must not fetch tiles")))
+    monkeypatch.setenv("OFFLINE_MODE", "true")
+    img = report.basemap(lat, lon, 12, size=256)
+    assert img is not None and img.size == (256, 256)
+    # water in the western part of the data tile, background elsewhere, the road colour somewhere along the tile's horizontal midline
+    colours = {img.getpixel((x, y)) for x in range(0, 256, 8) for y in range(0, 256, 8)}
+    assert (170, 211, 223) in colours or (249, 210, 125) in colours
+    pdf = report.build_pdf(ALERT, None)
+    assert pdf.startswith(b"%PDF")
+
+
+def test_offline_basemap_is_none_without_a_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(report, "PMTILES_FILE", str(tmp_path / "missing.pmtiles"))
+    monkeypatch.setenv("OFFLINE_MODE", "true")
+    assert report.basemap(22.9, 72.6, 12) is None

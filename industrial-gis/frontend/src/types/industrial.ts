@@ -432,3 +432,12 @@ export interface DashboardData {
   class_mix: { at: string; by_class: Record<string, number> }[];
   model: DashboardModelCard | null;
 }
+
+// ---- Phase 9: accounts, roles, audit ---------------------------------------------------------------------------------------
+export type Role = 'viewer' | 'analyst' | 'admin';
+export interface AuthUser {
+  user_id: number | null; username: string; display_name: string | null; role: Role; active: boolean; must_change_password?: boolean;
+  created_at?: string; last_login_at?: string | null; via?: 'proxy';
+}
+export interface AuthMe { auth_mode: 'off' | 'local' | 'proxy'; user: AuthUser | null; demo_readonly: boolean; offline_mode: boolean; session_idle_minutes: number }
+export interface AuditEntry { audit_id: number; at: string; actor: string; role: string | null; action: string; target: string | null; detail: Record<string, unknown> | null; ip: string | null; row_hash: string }

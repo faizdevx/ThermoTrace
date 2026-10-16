@@ -3,6 +3,7 @@ import { thermalExportUrl } from '@/services/api';
 import { WINDOWS, type useThermal } from '@/hooks/useThermal';
 import { formatAge } from '@/components/LiveStatus';
 import { useNarrow } from '@/hooks/useNarrow';
+import { useAuth } from '@/hooks/useAuth';
 
 type ThermalState = ReturnType<typeof useThermal>;
 
@@ -15,6 +16,7 @@ const box: React.CSSProperties = {
 
 export function ThermalControls({ t }: { t: ThermalState }) {
   const narrow = useNarrow();
+  const auth = useAuth();
   const [open, setOpen] = useState(!narrow);      // phones start with the panel folded so the map is visible
   const age = t.status?.freshness?.latest_detection_age_seconds ?? null;
   const fresh = t.status?.freshness?.state;
@@ -76,7 +78,8 @@ export function ThermalControls({ t }: { t: ThermalState }) {
                   Alerts only
                 </label>
               </div>
-              <div style={{ marginTop: 8, display: 'flex', gap: 6, alignItems: 'center' }}>
+              {!auth.can('analyst') ? <p style={{ margin: '8px 0 0', color: '#94a3b8' }}>Downloads need the analyst role.</p> : null}
+              <div style={{ marginTop: 8, display: auth.can('analyst') ? 'flex' : 'none', gap: 6, alignItems: 'center' }}>
                 <span style={{ color: '#64748b' }}>Export:</span>
                 {(['csv', 'geojson'] as const).map(f => (
                   <a key={f} href={thermalExportUrl(f, t.filters)} download

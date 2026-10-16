@@ -291,7 +291,8 @@ export interface ThermalStatus {
   reason?: string;
   summary?: { sources?: number; detections?: number; window_days?: number; alerts?: number; facilities_indexed?: number };
   status?: { last_success_at?: string; latest_detection_at?: string; last_error?: string | null; state?: string };
-  freshness?: { state: 'live' | 'delayed'; last_refresh_age_seconds: number | null; latest_detection_age_seconds: number | null; note: string };
+  replay?: { active: boolean; finished?: boolean; scenario: string; title: string; virtual_time: string; from: string; to: string; speed?: number | null };
+  freshness?: { state: 'live' | 'delayed' | 'replay'; last_refresh_age_seconds: number | null; latest_detection_age_seconds: number | null; note: string };
   attribution?: string[];
 }
 

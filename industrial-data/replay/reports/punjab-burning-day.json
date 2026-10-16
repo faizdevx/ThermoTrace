@@ -1,0 +1,114 @@
+{
+  "scenario": "punjab-burning-day",
+  "title": "Punjab crop-residue burning peak (2026-05-08..10)",
+  "start": "2026-05-08",
+  "end": "2026-05-10",
+  "expect": {
+    "dominant_class": "agricultural_burning",
+    "alert": false,
+    "max_alerts": 0
+  },
+  "ticks": [
+    {
+      "clock": "2026-05-08T00:00:00+00:00",
+      "sources": 5104,
+      "new_detections": 11438,
+      "alerts_created": 1,
+      "alerts_deduplicated": 0
+    },
+    {
+      "clock": "2026-05-08T12:00:00+00:00",
+      "sources": 5667,
+      "new_detections": 1640,
+      "alerts_created": 0,
+      "alerts_deduplicated": 0
+    },
+    {
+      "clock": "2026-05-09T00:00:00+00:00",
+      "sources": 5662,
+      "new_detections": 1,
+      "alerts_created": 0,
+      "alerts_deduplicated": 0
+    },
+    {
+      "clock": "2026-05-09T12:00:00+00:00",
+      "sources": 6357,
+      "new_detections": 2273,
+      "alerts_created": 0,
+      "alerts_deduplicated": 0
+    },
+    {
+      "clock": "2026-05-09T18:00:00+00:00",
+      "sources": 6384,
+      "new_detections": 147,
+      "alerts_created": 0,
+      "alerts_deduplicated": 0
+    },
+    {
+      "clock": "2026-05-10T00:00:00+00:00",
+      "sources": 6377,
+      "new_detections": 2,
+      "alerts_created": 0,
+      "alerts_deduplicated": 0
+    },
+    {
+      "clock": "2026-05-10T06:00:00+00:00",
+      "sources": 6377,
+      "new_detections": 4,
+      "alerts_created": 0,
+      "alerts_deduplicated": 0
+    },
+    {
+      "clock": "2026-05-10T12:00:00+00:00",
+      "sources": 6746,
+      "new_detections": 1537,
+      "alerts_created": 0,
+      "alerts_deduplicated": 0
+    }
+  ],
+  "alerts": [
+    {
+      "alert_id": 69,
+      "severity": "watch",
+      "trigger": "frp_z",
+      "site_name": null,
+      "site_kind": "mining_quarry",
+      "peak_frp": 24.719999313354492,
+      "p_fire": 0.028230741958358372,
+      "frp_z": 5.47,
+      "at": "2026-05-08T00:00:00+00:00",
+      "summary": "WATCH: possible industrial fire at an unnamed mining quarry (mining quarry), Punjab - peak 25 MW; power +5.5 sd above this facility's own baseline",
+      "lat": 31.581714534530413,
+      "lon": 75.56847790265299
+    }
+  ],
+  "baseline": {
+    "history_detections": 33872,
+    "entities": 12927,
+    "covered_days": 253
+  },
+  "final": {
+    "sources": 6746,
+    "by_class": {
+      "agricultural_burning": 6441,
+      "unmapped_persistent": 133,
+      "industrial_fire_candidate": 95,
+      "vegetation_fire": 52,
+      "other": 21,
+      "industrial_persistent": 4
+    },
+    "by_model_class": {
+      "agricultural_burning": 6412,
+      "vegetation_fire": 277,
+      "industrial_persistent": 57
+    }
+  },
+  "verdict": {
+    "dominant_class": "agricultural_burning",
+    "class_ok": true,
+    "alerts_total": 1,
+    "alerts_at_focus": 1,
+    "alert_ok": false,
+    "pass": false
+  }
+}

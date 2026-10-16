@@ -21,7 +21,7 @@ NOW = datetime(2026, 10, 16, 12, 0, tzinfo=timezone.utc)
 def _src(**over):
     base = {"source_id": "s1", "lat": 21.0, "lon": 83.0, "site_ref": "osm:1", "site_within": True, "site_name": "Test Refinery", "site_kind": "refinery",
             "state": "Gujarat", "last_seen": pd.Timestamp(NOW - timedelta(hours=2)), "first_seen": pd.Timestamp(NOW - timedelta(days=1)),
-            "frp_max": 30.0, "frp_z": 0.5, "class_scores": {"industrial_fire_candidate": 0.2}, "reasons": ["r1"]}
+            "frp_max": 30.0, "frp_z": 0.5, "lc_crop": 0.05, "night_fraction": 0.6, "class_scores": {"industrial_fire_candidate": 0.2}, "reasons": ["r1"]}
     base.update(over)
     return base
 
@@ -316,3 +316,13 @@ def test_uuid_and_id_like_names_are_not_shown_as_the_place():
     c = rules.evaluate(_df(_src(site_name="4777cc0c-6601-548d-a1ed-9603fa34fd5c", site_ref="osm:9", site_kind="gas_flare",
                                 class_scores={"industrial_fire_candidate": 0.9})), NOW)[0]
     assert "4777cc0c" not in c.summary and "an unnamed gas flare" in c.summary
+
+
+def test_field_burning_signature_never_alerts_even_at_a_mapped_facility():
+    field = _src(site_kind="brick_kiln", lc_crop=0.97, night_fraction=0.0, frp_z=9.0, class_scores={"industrial_fire_candidate": 0.9})
+    night_fire = _src(site_kind="brick_kiln", lc_crop=0.97, night_fraction=0.7, frp_z=9.0)      # cropland but burning at night: not a field fire
+    built_up = _src(site_kind="chemical", lc_crop=0.02, night_fraction=0.0, frp_z=9.0)           # a daytime fire in an industrial estate
+    skipped: list = []
+    out = rules.evaluate(_df(dict(field, source_id="f"), dict(night_fire, source_id="n", site_ref="osm:2"),
+                             dict(built_up, source_id="b", site_ref="osm:3")), NOW, vetoed=skipped)
+    assert skipped == ["f"] and sorted(c.source_id for c in out) == ["b", "n"]

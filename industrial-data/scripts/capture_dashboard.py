@@ -71,7 +71,7 @@ def main():
     if not exe:
         raise SystemExit("no Edge/Chrome found")
     profile = tempfile.mkdtemp(prefix="tt-shot-")
-    proc = subprocess.Popen([exe, "--headless=new", "--disable-gpu", "--hide-scrollbars", f"--window-size={W},{H}",
+    proc = subprocess.Popen([exe, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--disable-extensions", "--disable-sync", "--no-first-run", "--no-default-browser-check", f"--window-size={W},{H}",
                              f"--remote-debugging-port={PORT}", f"--user-data-dir={profile}", "about:blank"],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
@@ -81,7 +81,7 @@ def main():
                 break
             except Exception:  # noqa: BLE001
                 time.sleep(0.5)
-        page = next(t for t in tabs if t["type"] == "page")
+        page = next(t for t in tabs if t["type"] == "page" and t["url"] in ("about:blank", "") or t["url"].startswith("http://localhost"))
         cdp = Cdp(page["webSocketDebuggerUrl"])
         cdp.call("Emulation.setDeviceMetricsOverride", width=W, height=H, deviceScaleFactor=1, mobile=False)
         cdp.call("Page.navigate", url=URL)
@@ -112,7 +112,7 @@ def main():
             time.sleep(0.5)
             for kind in ("mousePressed", "mouseReleased"):
                 cdp.call("Input.dispatchMouseEvent", type=kind, x=pt["x"], y=pt["y"], button="left", clickCount=1)
-            wait(cdp, "!!document.querySelector('.leaflet-popup-content') && /Sources \(/.test(document.querySelector('.leaflet-popup-content').innerText)",
+            wait(cdp, "!!document.querySelector('.leaflet-popup-content') && /Sources \\(/.test(document.querySelector('.leaflet-popup-content').innerText)",
                  30, "facility popup")
             time.sleep(2)
             cdp.shot(OUT / "facility_provenance.png")

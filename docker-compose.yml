@@ -186,6 +186,28 @@ services:
       db: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
 
+  # Replay stack (profile "replay"): the same API reading the *replay* database and snapshot directory that
+  # `python -m src.thermal.cli replay` fills (see docs/REPLAY.md). Never touches the live data.
+  api-replay:
+    profiles: ["replay"]
+    build: { context: ., dockerfile: docker/api.Dockerfile }
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-thermotrace}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-thermotrace}_replay
+      DATA_MODE: postgis
+      FACILITIES_DIR: /data/thermal/facilities
+      THERMAL_DATA_DIR: /replay/thermal
+      THERMAL_IMAGERY_DIR: /replay/imagery
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8080,http://localhost:5173}
+      ANALYST_TOKEN: ${ANALYST_TOKEN:-}
+    volumes:
+      - thermaldata:/data/thermal:ro
+      - ./data/thermal/replay:/replay/thermal:ro
+      - ./data/thermal/imagery:/replay/imagery:ro
+    ports:
+      - "127.0.0.1:${API_REPLAY_PORT:-8001}:8000"
+    depends_on:
+      db: { condition: service_healthy }
+
   frontend:
     build: { context: ., dockerfile: docker/frontend.Dockerfile }
     ports:

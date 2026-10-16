@@ -491,7 +491,10 @@ def thermal_status() -> dict[str, Any]:
 
     refresh_age, detect_age = age("last_success_at"), age("latest_detection_at")
     state = "live" if refresh_age is not None and refresh_age < 3 * 3600 and (detect_age or 0) < 12 * 3600 else "delayed"
-    return {"available": True, **info, "freshness": {
+    replay = st.get("replay") or thermal_repo.read_replay()
+    if replay:     # archived data on a virtual clock: "age" is meaningless, say what this is
+        state = "replay"
+    return {"available": True, **info, **({"replay": replay} if replay else {}), "freshness": {
         "state": state, "last_refresh_age_seconds": refresh_age, "latest_detection_age_seconds": detect_age,
         "note": "FIRMS VIIRS near-real-time data lag the satellite overpass by roughly 3 hours; "
                 "live means refreshed within 3 h and holding detections from the last 12 h."}}

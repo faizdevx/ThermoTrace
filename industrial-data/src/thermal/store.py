@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -26,7 +27,14 @@ def _atomic_write(path: Path, text: str) -> None:
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(text)
-        os.replace(tmp, path)          # readers never see a half-written file
+        for attempt in range(40):      # readers never see a half-written file
+            try:
+                os.replace(tmp, path)
+                break
+            except PermissionError:    # Windows: a reader (bind-mounted container) has the file open for a moment
+                if attempt == 39:
+                    raise
+                time.sleep(0.1)
     except Exception:
         Path(tmp).unlink(missing_ok=True)
         raise

@@ -304,6 +304,17 @@ class PostgisBackend:
                 "attribution": ["NASA FIRMS (LANCE)", "OpenStreetMap contributors (ODbL)", "ESA WorldCover 2021 v200 (CC BY 4.0)"]}
 
 
+def read_replay() -> dict | None:
+    """The ``replay`` block of the worker's status file (set only by ``python -m src.thermal.cli replay``), whatever backend
+    serves the data: a replayed dashboard must say it is not live."""
+    try:
+        data = json.loads((default_dir() / "status.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    r = data.get("replay")
+    return r if isinstance(r, dict) else None
+
+
 def get_backend():
     mode = os.getenv("THERMAL_BACKEND", "auto")
     file_backend = _file_singleton()

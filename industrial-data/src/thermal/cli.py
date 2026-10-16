@@ -2,6 +2,7 @@
 
     python -m src.thermal.cli refresh      # one cycle
     python -m src.thermal.cli run          # loop forever (default every 30 min)
+    python -m src.thermal.cli replay --scenario vatva-gidc --speed 60x   # archived event through the same pipeline
 
 Each cycle: fetch FIRMS NRT detections -> merge with the stored history -> cluster, match
 facilities, sample land cover, classify -> publish an atomic snapshot -> (optionally) commit to PostGIS
@@ -199,14 +200,19 @@ def _maybe_refresh_baseline(dsn: str, out_dir: Path, every_hours: float = 24.0) 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="thermotrace-thermal")
-    ap.add_argument("command", choices=["refresh", "run"])
+    ap.add_argument("command", choices=["refresh", "run", "replay"])
     ap.add_argument("--out", default=os.getenv("THERMAL_DATA_DIR", "data/thermal/live"))
     ap.add_argument("--window-days", type=int, default=int(os.getenv("THERMAL_WINDOW_DAYS", "14")))
     ap.add_argument("--interval", type=int, default=int(os.getenv("THERMAL_INTERVAL_SECONDS", "600")))
     ap.add_argument("--no-landcover", action="store_true")
+    from . import replay as replay_mod
+    replay_mod.add_arguments(ap)
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     out = Path(args.out)
+
+    if args.command == "replay":
+        return replay_mod.command(args)
 
     if args.command == "refresh":
         try:

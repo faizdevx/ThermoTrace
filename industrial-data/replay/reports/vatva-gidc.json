@@ -1,0 +1,82 @@
+{
+  "scenario": "vatva-gidc",
+  "title": "Vatva GIDC chemical-estate fire, Gujarat (IN-024, 2020-12-09)",
+  "start": "2020-12-07",
+  "end": "2020-12-11",
+  "expect": {
+    "classes": [
+      "industrial_fire_candidate"
+    ],
+    "alert": true
+  },
+  "ticks": [
+    {
+      "clock": "2020-12-09T00:00:00+00:00",
+      "sources": 1,
+      "new_detections": 8,
+      "alerts_created": 1,
+      "alerts_deduplicated": 0
+    }
+  ],
+  "alerts": [
+    {
+      "alert_id": 73,
+      "severity": "high",
+      "trigger": "both",
+      "site_name": "JM Zhongkai Chemical Equipment LLP",
+      "site_kind": "factory_generic",
+      "peak_frp": 62.369998931884766,
+      "p_fire": 0.9472015219536848,
+      "frp_z": 82.68,
+      "at": "2020-12-09T00:00:00+00:00",
+      "summary": "HIGH: possible industrial fire at JM Zhongkai Chemical Equipment LLP (factory generic), Gujar\u0101t - peak 62 MW; P(industrial fire) 95%; power +82.7 sd above this facility's own baseline",
+      "lat": 22.955209486930837,
+      "lon": 72.63502664055989
+    }
+  ],
+  "baseline": {
+    "history_detections": 11,
+    "entities": 9,
+    "covered_days": 8
+  },
+  "focus_log": [
+    {
+      "clock": "2020-12-09T00:00:00+00:00",
+      "class": "industrial_fire_candidate",
+      "model_class": "industrial_persistent",
+      "frp_max": 62.369998931884766,
+      "frp_z": 82.68,
+      "n_detections": 8,
+      "source_id": "tsm2296_7264"
+    }
+  ],
+  "final": {
+    "sources": 1,
+    "by_class": {
+      "industrial_fire_candidate": 1
+    },
+    "by_model_class": {
+      "industrial_persistent": 1
+    },
+    "focus": {
+      "source_id": "tsm2296_7264",
+      "class": "industrial_fire_candidate",
+      "model_class": "industrial_persistent",
+      "frp_max": 62.369998931884766,
+      "site_kind": "factory_generic",
+      "site_within": true,
+      "n_detections": 8
+    }
+  },
+  "verdict": {
+    "class_shown": "industrial_fire_candidate",
+    "class_ok": true,
+    "classes_seen": [
+      "industrial_fire_candidate"
+    ],
+    "alerts_total": 1,
+    "alerts_at_focus": 1,
+    "alert_ok": true,
+    "pass": true
+  }
+}

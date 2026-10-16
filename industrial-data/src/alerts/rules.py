@@ -9,6 +9,11 @@ Rule (either one is enough):
   deviations above that facility's own 365-day baseline.
 
 Both also need a detection in the last ``MAX_AGE_HOURS`` so an old source is never announced as news.
+
+**Field-burning veto** (added after the Punjab replay, see docs/REPLAY.md): a source whose surroundings are at least 60 %
+cropland (ESA WorldCover) and which was seen almost only by day (night share < 20 %) has the signature of crop-residue
+burning, whatever mapped facility - landfill, brick kiln, quarry - happens to sit in the field. It is never alerted.
+Without the veto a peak burning day produced 58 alerts at facilities embedded in farmland.
 Severity: radiative power sets the base level (watch < 40 MW <= high < 100 MW <= critical); facilities where a fire
 spreads or is hazardous (refinery, LNG, chemical, oil and gas storage) are raised one level.
 """
@@ -37,7 +42,8 @@ def _env_float(name: str, default: float) -> float:
 def settings() -> dict:
     return {"p_fire": _env_float("ALERT_P_FIRE_THRESHOLD", 0.6), "frp_z": _env_float("ALERT_FRP_Z_THRESHOLD", 3.0),
             "max_age_hours": _env_float("ALERT_MAX_AGE_HOURS", 24.0), "min_frp": _env_float("ALERT_MIN_FRP", 5.0),
-            "dedupe_hours": _env_float("ALERT_DEDUPE_HOURS", DEDUPE_HOURS)}
+            "dedupe_hours": _env_float("ALERT_DEDUPE_HOURS", DEDUPE_HOURS),
+            "veto_crop": _env_float("ALERT_VETO_CROP_FRACTION", 0.6), "veto_night": _env_float("ALERT_VETO_NIGHT_FRACTION", 0.2)}
 
 
 def is_hazardous(kind) -> bool:
@@ -119,8 +125,15 @@ def summary_text(c: Candidate) -> str:
     return f"{c.severity.upper()}: possible industrial fire at {where} ({kind}), {_text(r.get('state')) or 'India'} - {peak}; " + "; ".join(bits)
 
 
-def evaluate(sources: pd.DataFrame, now: datetime | None = None, cfg: dict | None = None) -> list[Candidate]:
-    """Candidates (one per facility, the strongest source) among the current sources."""
+def looks_like_field_burning(row: dict, cfg: dict) -> bool:
+    crop, night = _f(row.get("lc_crop")), _f(row.get("night_fraction"))
+    return crop is not None and night is not None and crop >= cfg["veto_crop"] and night < cfg["veto_night"]
+
+
+def evaluate(sources: pd.DataFrame, now: datetime | None = None, cfg: dict | None = None,
+             vetoed: list | None = None) -> list[Candidate]:
+    """Candidates (one per facility, the strongest source) among the current sources; ``vetoed`` collects source ids
+    that passed a threshold but look like field burning."""
     cfg = cfg or settings()
     now = now or datetime.now(timezone.utc)
     best: dict[str, Candidate] = {}
@@ -137,6 +150,10 @@ def evaluate(sources: pd.DataFrame, now: datetime | None = None, cfg: dict | Non
         by_p = pf is not None and pf >= cfg["p_fire"]
         by_z = at_facility(row) and z is not None and z >= cfg["frp_z"]
         if not (by_p or by_z):
+            continue
+        if looks_like_field_burning(row, cfg):
+            if vetoed is not None:
+                vetoed.append(str(row["source_id"]))
             continue
         c = Candidate(str(row["source_id"]), facility_key(row), "both" if by_p and by_z else "p_fire" if by_p else "frp_z",
                       severity_for(frp, row.get("site_kind")), pf, frp, z, row, "")

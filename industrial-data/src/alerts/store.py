@@ -83,8 +83,10 @@ def process_cycle(conn, sources: pd.DataFrame, now: datetime | None = None, send
     now = now or datetime.now(timezone.utc)
     stats = {"candidates": 0, "created": 0, "deduplicated": 0, "delivered": 0, "failed": 0, "deferred": 0,
              "channels": notify.configured()}
-    cands = rules.evaluate(sources, now, cfg)
+    vetoed: list[str] = []
+    cands = rules.evaluate(sources, now, cfg, vetoed)
     stats["candidates"] = len(cands)
+    stats["vetoed_field_burning"] = len(vetoed)
     max_new = int(os.getenv("ALERT_MAX_PER_CYCLE", "10"))
     window = timedelta(hours=cfg["dedupe_hours"])
     with conn.cursor() as cur:

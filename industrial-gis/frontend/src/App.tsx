@@ -384,6 +384,14 @@ export default function App() {
           The API is running but the database is unavailable. Data on screen may be stale.
         </Banner>
       )}
+      {thermal.status?.replay && (
+        <Banner tone="violet">
+          <strong>REPLAY</strong> - archived NASA FIRMS data, not live: {thermal.status.replay.title}.{' '}
+          {thermal.status.replay.finished ? 'Finished at ' : 'Virtual clock '}
+          <span data-testid="replay-clock">{new Date(thermal.status.replay.virtual_time).toISOString().replace('T', ' ').slice(0, 16)} UTC</span>
+          {thermal.status.replay.speed ? ` (${thermal.status.replay.speed}x)` : ''}
+        </Banner>
+      )}
       {synthetic && (
         <Banner tone="violet">
           DEMO MODE - these ~30 sites are synthetic placeholders for offline testing, not real facilities. Start the stack with DATA_MODE=postgis for real data.
@@ -625,7 +633,7 @@ export default function App() {
         onClose={() => thermal.select(null)}
       />
       <AlertInbox alerts={alerts} open={showInbox} onClose={() => setShowInbox(false)}
-        onLocate={a => thermal.select(a.source_id)} />
+        onLocate={a => { thermal.select(a.source_id); setShowInbox(false); }} />
       <AnalyticsPanel statistics={statistics} isOpen={showAnalytics} onClose={() => setShowAnalytics(false)} />
 
       {(selectedSite || showAnalytics) && (

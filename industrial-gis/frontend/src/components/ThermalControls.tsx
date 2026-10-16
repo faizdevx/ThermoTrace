@@ -43,9 +43,9 @@ export function ThermalControls({ t }: { t: ThermalState }) {
               <p style={{ margin: '0 0 6px', color: '#64748b' }}>
                 {t.stats ? <><strong style={{ color: '#0f172a' }}>{t.stats.total_sources.toLocaleString()}</strong> sources from{' '}
                   {t.stats.detections.toLocaleString()} VIIRS detections</> : 'Loading…'}
-                {age != null && <> · newest {formatAge(age)} old</>}
-                {fresh && <span style={{ marginLeft: 6, color: fresh === 'live' ? '#15803d' : '#b45309', fontWeight: 700 }}>
-                  {fresh === 'live' ? '● live' : '● delayed'}</span>}
+                {age != null && fresh !== 'replay' && <> · newest {formatAge(age)} old</>}
+                {fresh && <span style={{ marginLeft: 6, color: fresh === 'live' ? '#15803d' : fresh === 'replay' ? '#6d28d9' : '#b45309', fontWeight: 700 }}>
+                  {fresh === 'live' ? '● live' : fresh === 'replay' ? '● replay' : '● delayed'}</span>}
               </p>
               <div role="group" aria-label="Thermal classes">
                 {t.classes.map(c => (

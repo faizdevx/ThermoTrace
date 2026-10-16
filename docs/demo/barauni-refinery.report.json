@@ -1,0 +1,84 @@
+{
+ "scenario": "barauni-refinery",
+ "title": "Barauni refinery effluent-treatment fire, Bihar (IN-034, 2024-02-10)",
+ "start": "2024-02-08",
+ "end": "2024-02-12",
+ "verdict": {
+  "class_shown": "industrial_fire_candidate",
+  "class_ok": true,
+  "classes_seen": [
+   "industrial_fire_candidate"
+  ],
+  "alerts_total": 3,
+  "alerts_at_focus": 3,
+  "alert_ok": true,
+  "pass": true
+ },
+ "final": {
+  "sources": 1,
+  "by_class": {
+   "industrial_fire_candidate": 1
+  },
+  "by_model_class": {
+   "industrial_persistent": 1
+  },
+  "focus": {
+   "source_id": "tsm2544_8607",
+   "class": "industrial_fire_candidate",
+   "model_class": "industrial_persistent",
+   "frp_max": 6.539999961853027,
+   "site_kind": "refinery_petrochem",
+   "site_within": true,
+   "n_detections": 4
+  }
+ },
+ "alerts": [
+  {
+   "alert_id": 106,
+   "severity": "high",
+   "trigger": "p_fire",
+   "site_name": "Barauni Oil Refinery",
+   "site_kind": "refinery_petrochem",
+   "peak_frp": 6.539999961853027,
+   "p_fire": 0.7460200071437996,
+   "frp_z": 2.26,
+   "at": "2024-02-10T11:00:00+00:00",
+   "summary": "HIGH: possible industrial fire at Barauni Oil Refinery (refinery petrochem), Bih\u0101r - peak 7 MW; P(industrial fire) 75%",
+   "lat": 25.43581,
+   "lon": 86.07207
+  },
+  {
+   "alert_id": 107,
+   "severity": "high",
+   "trigger": "p_fire",
+   "site_name": "Barauni Oil Refinery",
+   "site_kind": "refinery_petrochem",
+   "peak_frp": 6.539999961853027,
+   "p_fire": 0.6596846137771275,
+   "frp_z": 3.46,
+   "at": "2024-02-10T23:00:00+00:00",
+   "summary": "HIGH: possible industrial fire at Barauni Oil Refinery (refinery petrochem), Bih\u0101r - peak 7 MW; P(industrial fire) 66%",
+   "lat": 25.436236420222304,
+   "lon": 86.07105782103817
+  },
+  {
+   "alert_id": 108,
+   "severity": "high",
+   "trigger": "p_fire",
+   "site_name": "Barauni Oil Refinery",
+   "site_kind": "refinery_petrochem",
+   "peak_frp": 6.539999961853027,
+   "p_fire": 0.6594847157962901,
+   "frp_z": 0.78,
+   "at": "2024-02-11T11:00:00+00:00",
+   "summary": "HIGH: possible industrial fire at Barauni Oil Refinery (refinery petrochem), Bih\u0101r - peak 7 MW; P(industrial fire) 66%",
+   "lat": 25.437139708747786,
+   "lon": 86.07036269418126
+  }
+ ],
+ "baseline": {
+  "history_detections": 122,
+  "entities": 10,
+  "covered_days": 50
+ }
+}

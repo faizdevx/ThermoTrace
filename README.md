@@ -66,7 +66,7 @@ All figures are produced by `industrial-data/scripts/make_figures.py` from the r
 ![Per-class F1: rules, model and the model blind to the rule inputs](docs/images/eval_f1_ablation.png)
 ![Confusion matrices, rules vs model](docs/images/eval_confusion.png)
 
-**2. Context, not satellite behaviour alone, separates the classes.** A model that sees only thermal behaviour (persistence, night share, power, footprint) scores macro-F1 0.633, below the rules; facility proximity and land cover carry the rest. Since those same inputs define the labels, 0.993 is agreement with the labelling rules, not real-world accuracy. The independent check is the verified incidents: of 19 evaluated so far (34 verified, the rest still downloading from the rate-limited FIRMS archive), VIIRS saw 11; at 0.25 false alarms per day (held-out crop/forest units) the model flags all 11, the rules 10. 8 produced no detection, which no thermal method can recover.
+**2. Context, not satellite behaviour alone, separates the classes.** A model that sees only thermal behaviour (persistence, night share, power, footprint) scores macro-F1 0.633, below the rules; facility proximity and land cover carry the rest. Since those same inputs define the labels, 0.993 is agreement with the labelling rules, not real-world accuracy. The independent check is the 34 verified incidents: VIIRS saw heat inside the incident circle for 20 of them; at 0.25 false alarms per day (held-out crop/forest units) the model flags all 20 and the rules 16 (80 %); the other 14 produced no detection at all, which no thermal method can recover. The model scores worst where the location is only a named locality (5 detected: 4 above 0.5).
 
 ![Incident recall at fixed false-alarm rates](docs/images/eval_incidents.png)
 
@@ -94,10 +94,11 @@ Regenerate: `python industrial-data/scripts/evaluate.py [--refresh-features] && 
 | 1 | Facility database with provenance: OSM + WRI GPPD + GEM + VIIRS Nightfire, PostGIS, API, map layer | **OSM + WRI + VIIRS Nightfire flare sites done; GEM not loaded** (form behind a Cloudflare bot check, must be submitted by a person) |
 | 2 | 12-month FIRMS baseline per facility and per 1 km cell (S-NPP + NOAA-20), z-score of today against it, shown for every source | **done** (see [Baseline](#baseline-what-is-normal-for-this-place)) |
 | 3 | Labelled evaluation set: 3,247 weak rule labels (3 classes) + 32 verified incidents, region/time split, checksummed manifest | **done** with two documented deviations (no MCD64A1 confirmation, no GEM) - see [Labelled evaluation set](#labelled-evaluation-set) |
-| 4 | Trained model (gradient-boosted trees, calibrated, Shapley reasons, `model_version`) in the live pipeline, rules kept as baseline/fallback, `docs/EVALUATION.md`, `/api/thermal/model` | **done**: model beats rules on held-out data (0.993 vs 0.809 macro-F1, against rule-derived labels); incident check runs on 19 of 34 verified incidents while the rest download |
+| 4 | Trained model (gradient-boosted trees, calibrated, Shapley reasons, `model_version`) in the live pipeline, rules kept as baseline/fallback, `docs/EVALUATION.md`, `/api/thermal/model` | **done**: model beats rules on held-out data (0.993 vs 0.809 macro-F1, against rule-derived labels); incident check on all 34 verified incidents (20 with a detection) |
 | 5 | Sentinel-2 L2A after/before chips (true colour + SWIR), dNBR, SWIR hot pixels, Landsat 8/9 TIRS check, cached, `/api/thermal/sources/{id}/imagery`, dNBR in the reasons | **done**; imagery tested as model features and **not** adopted (see Finding 6) |
 | 6 | Industrial-fire alerting (rule, severity, dedupe per facility per 6 h), webhook + Telegram + email delivery, analyst inbox (Confirm / Reject / Unsure + note) writing to `labels`, incident timeline | **done**; delivery verified against a local fake Telegram server, **not yet against a real bot** (needs your `TELEGRAM_BOT_TOKEN`) - see [Alerting](#alerting-and-the-analyst-loop) |
-| 7-9 | replay demo, judge-facing dashboard, remaining items | planned - see [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) |
+| 7 | Replay mode: archived FIRMS for documented incidents through the live pipeline on a virtual clock; demo video | **done**: 3 incidents + a gas flare + a Punjab burning day, all as expected, recorded in [the demo video](docs/demo/thermotrace_replay_demo.mp4); but only **5 of the 22 detected verified incidents** alert (see [docs/REPLAY.md](docs/REPLAY.md)) |
+| 8-9 | judge-facing dashboard, remaining items | planned - see [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) |
 
 ## Baseline: what is normal for this place
 
@@ -259,6 +260,8 @@ _The inbox lists alerts (open first, then by severity). Opening one shows the in
 * the **P(industrial fire)** is at least 0.6 (`ALERT_P_FIRE_THRESHOLD`) - this is the *rule classifier's* score for `industrial_fire_candidate`: the trained model has no fire class (verified incidents are test-only, see [docs/EVALUATION.md](docs/EVALUATION.md)), so it cannot supply that number; **or**
 * it is **at a known facility** (inside the facility's match radius, not merely the nearest one) and its power is at least **3 standard deviations above that facility's own 365-day baseline** (`ALERT_FRP_Z_THRESHOLD`).
 
+**Field-burning veto** (added after the Punjab replay, see [Replay](#replay-prove-it-on-a-real-event)): a source whose surroundings are at least 60 % cropland and which was seen almost only by day (night share below 20 %) is never alerted, whatever mapped facility - landfill, brick kiln, quarry - sits in the field. Without it the peak Punjab burning days raised 58 alerts; with it, 1.
+
 **Severity**: peak power sets the level (`watch` below 40 MW, `high` from 40 MW, `critical` from 100 MW); refineries, LNG, chemical, oil/gas, fuel and fertiliser facilities are raised one level. **Deduplication**: one alert per facility per 6 h (`ALERT_DEDUPE_HOURS`); later cycles inside the window refresh the alert's peak and last detection but never notify again. At most 10 new alerts per cycle (`ALERT_MAX_PER_CYCLE`); the rest are still candidates in the next cycle.
 
 **Delivery** (`src/alerts/notify.py`): webhook (JSON, optional `X-ThermoTrace-Signature` HMAC), Telegram bot, SMTP email. Credentials come from the environment only (`.env`, never committed; variables in `.env.example`). A channel without credentials is skipped; a failing channel is recorded on the alert and retried in later cycles (up to 5 attempts) without blocking the others. `python -m src.alerts test` (inside the worker container) sends a clearly labelled test alert through every configured channel.
@@ -268,6 +271,24 @@ _The inbox lists alerts (open first, then by severity). Opening one shows the in
 **Measured** (2026-10-16, real data, local stack): one cycle on live FIRMS data gave 78 candidate facilities *before* the "at the facility" fix - 70 of them were only the nearest facility, up to 37 km from a crop fire (z-scores of +30 against a mine's baseline) - and **8 alerts** after it (4 by baseline z alone, 4 by both rules; 2 `high`, 6 `watch`); all 8 were delivered to a local fake Telegram API in the same cycle, a second forced cycle created 0 new alerts and sent nothing (8 deduplicated), the CLI test alert was delivered, and a Confirm through the API appeared in `labels` as `analyst-alert-13 | industrial_fire | analyst:faiz | analyst-v1 | unused`. Most of the 8 are 5-11 MW detections at mines and flares: a power z-score says "unusual for this place", not "fire".
 
 **Limits.** No real Telegram bot, SMTP server or webhook receiver was used in testing (local fakes and mocks only); `ANALYST_TOKEN` is one shared secret, not per-user login; the dashboard's top "Alerts" card still counts the older `alert_level` flag, not these alerts; the server does not yet retrain on analyst labels - they are collected and queryable.
+
+## Replay: prove it on a real event
+
+[![Replay demo: the dashboard on a virtual clock, Vatva GIDC 2020-12-09](docs/demo/vatva-gidc.png)](docs/demo/thermotrace_replay_demo.mp4)
+
+_Click for the 4-minute demo video (five scenarios, recorded from the real dashboard, with the REPLAY banner and the virtual clock; in the first one the analyst confirms the alert and the decision lands in `labels`)._
+
+`python -m src.thermal.cli replay --scenario vatva-gidc --speed 60x` feeds archived FIRMS detections through **the same pipeline as the live worker** on a virtual clock: each detection appears 3 h after its overpass, one tick is one worker cycle (cluster, facility match, land cover, rules + model, baseline z-score, PostGIS commit and SSE event, alert rules with deduplication). The baseline uses only detections from before the replay starts. It writes to a separate `<db>_replay` database and snapshot folder; `docker compose --profile replay up -d api-replay` serves it on port 8001 and the dashboard shows a **REPLAY** banner. Details, scenarios and every number below: **[docs/REPLAY.md](docs/REPLAY.md)**.
+
+| Scenario | Expected | Replay result |
+|---|---|---|
+| Vatva GIDC chemical-estate fire, 2020-12-09 (62 MW) | industrial class + alert | `industrial_fire_candidate`, 1 **high** alert at the first visible detection |
+| Barauni refinery effluent fire, 2024-02-10 (6.5 MW) | industrial class + alert | `industrial_fire_candidate`, **high** alerts (refinery severity bump); re-alerts each 6 h window |
+| Amudan Chemicals fire, 2024-05-23 (8.6 MW, one detection) | industrial class + alert | `industrial_fire_candidate`, 1 **watch** alert |
+| Nahorkatiya gas flare, Assam, 2026-09-01..07 | persistent class, no alert | `industrial_persistent`, 0 alerts |
+| Punjab crop-burning peak, 2026-05-08..10 (6,746 sources) | crop burning dominates, at most 3 alerts | 95 % `agricultural_burning`, 1 alert (a persistent 25 MW source at a quarry) |
+
+**What this does not prove.** The three incidents are the ones the pipeline gets right, picked from the 34 verified ones as asked ("curated"). Replaying all of them: 12 have no detection at all, **22 have one, and 5 of those alert (23 %; 15 % of all 34)**. The misses are mostly refineries that are always hot (a fire inside one is invisible at 375 m) and sources too weak or not at a mapped facility - including the 54 MW Jindal Poly Films event (IN-029), classed `other` with no alert because no mapped facility contains the heat and no baseline exists. The first Punjab replay raised 58 false alerts at facilities embedded in farmland; the cropland veto fixes that, but it was made after seeing the failure, so Punjab is now a regression test, not an independent one. The facility map, land cover and model are today's, not those of 2020.
 
 ## Facility database (OSM + WRI + Global Energy Monitor + VIIRS Nightfire)
 
@@ -400,11 +421,11 @@ TEST_DATABASE_URL=postgresql://user:pw@localhost:5432/postgres python -m pytest 
 cd industrial-gis/frontend && npx tsc --noEmit && npm test && npm run build
 ```
 
-Results on the development machine (2026-10-15): `industrial-data/tests` 341 passed with PostGIS available (about 300 without; includes the ML, imagery and alert tests); API synthetic suite 64 passed; API against PostGIS 38 passed (includes the alert inbox); frontend `tsc` clean, vitest 55 passed. GitHub Actions: the pushes to `main` completed with `success`.
+Results on the development machine (2026-10-15): `industrial-data/tests` 350 passed with PostGIS available (about 310 without; includes the ML, imagery, alert and replay tests); API synthetic suite 64 passed; API against PostGIS 38 passed (includes the alert inbox); frontend `tsc` clean, vitest 55 passed. GitHub Actions: the pushes to `main` completed with `success`.
 
 ## Configuration
 
-See `.env.example`. Key variables: `POSTGRES_*`, `ALLOWED_ORIGINS`, `ADMIN_TOKEN`, `OSM_REGION`, `OSM_POLL_INTERVAL_SECONDS`, `OSM_FRESHNESS_TARGET_SECONDS`, `FIRMS_MAP_KEY` (optional), `THERMAL_INTERVAL_SECONDS` (default 600), `THERMAL_FACILITIES_GEOJSON`, `FACILITIES_DIR`, `FACILITIES_BACKEND` (`auto`/`files`/`postgis`), `THERMAL_WINDOW_DAYS`, `THERMAL_IMAGERY` (on by default), `THERMAL_IMAGERY_DIR`, `THERMAL_IMAGERY_PER_CYCLE` (default 4), `THERMAL_IMAGERY_BUDGET_SECONDS` (default 240), `ANALYST_TOKEN`, `ALERT_*` thresholds, `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`, `ALERT_WEBHOOK_URL` / `ALERT_WEBHOOK_SECRET`, `SMTP_*` / `ALERT_EMAIL_FROM` / `ALERT_EMAIL_TO`, `VITE_TILE_URL`. Never commit `.env`.
+See `.env.example`. Key variables: `POSTGRES_*`, `ALLOWED_ORIGINS`, `ADMIN_TOKEN`, `OSM_REGION`, `OSM_POLL_INTERVAL_SECONDS`, `OSM_FRESHNESS_TARGET_SECONDS`, `FIRMS_MAP_KEY` (optional), `THERMAL_INTERVAL_SECONDS` (default 600), `THERMAL_FACILITIES_GEOJSON`, `FACILITIES_DIR`, `FACILITIES_BACKEND` (`auto`/`files`/`postgis`), `THERMAL_WINDOW_DAYS`, `THERMAL_IMAGERY` (on by default), `THERMAL_IMAGERY_DIR`, `THERMAL_IMAGERY_PER_CYCLE` (default 4), `THERMAL_IMAGERY_BUDGET_SECONDS` (default 240), `ANALYST_TOKEN`, `ALERT_*` thresholds (incl. `ALERT_VETO_CROP_FRACTION`, `ALERT_VETO_NIGHT_FRACTION`), `REPLAY_DATABASE_URL`, `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`, `ALERT_WEBHOOK_URL` / `ALERT_WEBHOOK_SECRET`, `SMTP_*` / `ALERT_EMAIL_FROM` / `ALERT_EMAIL_TO`, `VITE_TILE_URL`. Never commit `.env`.
 
 ## Known limitations
 

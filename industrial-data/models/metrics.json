@@ -1,6 +1,6 @@
 {
-  "model_version": "thermal-gbm-2801a2c3-20261015",
-  "generated_at": "2026-10-15T17:43:23+00:00",
+  "model_version": "thermal-gbm-2801a2c3-20261016",
+  "generated_at": "2026-10-16T08:15:25+00:00",
   "classes": [
     "industrial_persistent",
     "agricultural_burning",
@@ -355,8 +355,8 @@
     }
   },
   "incidents": {
-    "n_incidents": 19,
-    "n_with_detection": 11,
+    "n_incidents": 34,
+    "n_with_detection": 20,
     "test_days": 203,
     "negatives": 918,
     "negatives_per_day": 4.522167487684729,
@@ -366,55 +366,55 @@
         "false_alarms_per_day": 0.25,
         "threshold": 1.0064748807489355e-06,
         "recall_of_detected": 1.0,
-        "recall_of_all": 0.5789473684210527,
+        "recall_of_all": 0.5882352941176471,
         "units_flagged": 45
       },
       {
         "false_alarms_per_day": 0.5,
         "threshold": 1.0007159426536983e-06,
         "recall_of_detected": 1.0,
-        "recall_of_all": 0.5789473684210527,
+        "recall_of_all": 0.5882352941176471,
         "units_flagged": 90
       },
       {
         "false_alarms_per_day": 1.0,
         "threshold": 1.0001769103566179e-06,
         "recall_of_detected": 1.0,
-        "recall_of_all": 0.5789473684210527,
+        "recall_of_all": 0.5882352941176471,
         "units_flagged": 164
       },
       {
         "false_alarms_per_day": 2.0,
         "threshold": 1.0001769103566179e-06,
         "recall_of_detected": 1.0,
-        "recall_of_all": 0.5789473684210527,
+        "recall_of_all": 0.5882352941176471,
         "units_flagged": 164
       }
     ],
     "rules": {
-      "recall_of_detected": 0.9090909090909091,
-      "recall_of_all": 0.5263157894736842,
+      "recall_of_detected": 0.8,
+      "recall_of_all": 0.47058823529411764,
       "false_alarms_per_day": 0.0,
       "units_flagged": 0
     },
     "by_tier": {
       "facility": {
-        "n": 8,
+        "n": 11,
         "model_p_median": 0.9999980000040002,
-        "model_hit_at_0.5": 8,
-        "rules_hit": 8
+        "model_hit_at_0.5": 11,
+        "rules_hit": 11
       },
       "industrial_area": {
-        "n": 1,
-        "model_p_median": 0.9214272105979288,
-        "model_hit_at_0.5": 1,
-        "rules_hit": 1
+        "n": 4,
+        "model_p_median": 0.945620386300549,
+        "model_hit_at_0.5": 3,
+        "rules_hit": 3
       },
       "locality": {
-        "n": 2,
-        "model_p_median": 0.8171455954319267,
-        "model_hit_at_0.5": 2,
-        "rules_hit": 1
+        "n": 5,
+        "model_p_median": 0.6655669426046241,
+        "model_hit_at_0.5": 4,
+        "rules_hit": 2
       }
     }
   },

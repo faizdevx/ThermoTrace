@@ -1,0 +1,56 @@
+{
+ "scenario": "amudan-chemicals",
+ "title": "Amudan Chemicals fire, Maharashtra (IN-036, 2024-05-23)",
+ "start": "2024-05-21",
+ "end": "2024-05-25",
+ "verdict": {
+  "class_shown": "industrial_fire_candidate",
+  "class_ok": true,
+  "classes_seen": [
+   "industrial_fire_candidate"
+  ],
+  "alerts_total": 1,
+  "alerts_at_focus": 1,
+  "alert_ok": true,
+  "pass": true
+ },
+ "final": {
+  "sources": 2,
+  "by_class": {
+   "industrial_fire_candidate": 2
+  },
+  "by_model_class": {
+   "industrial_persistent": 2
+  },
+  "focus": {
+   "source_id": "tsm1920_7310",
+   "class": "industrial_fire_candidate",
+   "model_class": "industrial_persistent",
+   "frp_max": 8.550000190734863,
+   "site_kind": "factory_generic",
+   "site_within": true,
+   "n_detections": 1
+  }
+ },
+ "alerts": [
+  {
+   "alert_id": 109,
+   "severity": "watch",
+   "trigger": "both",
+   "site_name": "Vortex Baruffaldi Private Limited",
+   "site_kind": "factory_generic",
+   "peak_frp": 8.550000190734863,
+   "p_fire": 0.8780818180090635,
+   "frp_z": 8.55,
+   "at": "2024-05-23T13:00:00+00:00",
+   "summary": "WATCH: possible industrial fire at Vortex Baruffaldi Private Limited (factory generic), Mah\u0101r\u0101shtra - peak 9 MW; P(industrial fire) 88%; power +8.6 sd above this facility's own baseline",
+   "lat": 19.19767,
+   "lon": 73.10081
+  }
+ ],
+ "baseline": {
+  "history_detections": 33,
+  "entities": 21,
+  "covered_days": 23
+ }
+}

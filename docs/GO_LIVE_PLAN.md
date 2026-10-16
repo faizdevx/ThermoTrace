@@ -5,6 +5,40 @@ Phases 0-9 of [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) are built and tes
 in the first weeks live), **COULD** (only when there is a reason). Effort is working days for one person who knows the code; "you" = needs
 an account, a decision or a credential only you have.
 
+## FINAL PLAN - decisions and the shortest safe path (read this first)
+
+**Decisions taken from the discussion**
+
+| Question | Decision |
+|---|---|
+| Hosting cost | Try **Oracle Always Free** first (2 OCPU / 12 GB is enough; check the current limit on Oracle's page); fallback **Hetzner about EUR 6/month**. Everything else free: FIRMS key, Telegram bot, Let's Encrypt via Caddy, free subdomain, self-hosted PMTiles basemap, public satellite data |
+| "Real-time" | Promise **alert 1-3 minutes after FIRMS publishes** (satellite data is about 3 h old and arrives a few times a day). Say it on the About page. No promise of instant fire detection |
+| Login / sign-up | Login exists. **Add sign-up (viewer only, email verification, rate limits, kill switch)** before inviting the public; analysts and admins are promoted by hand |
+| Many users | Unmeasured today. **Load-test before launch**, cache the heavy reads, queue PDFs and imagery. Do not claim a user number until the table exists |
+| ML in real time | Model is a second opinion; **alerts come from rules + baseline z-score**. Keep it that way at launch; add MLOps gate and registry before the model is allowed to influence alerts |
+| Always-on | Docker restart policy, nightly encrypted backup with an offsite copy, a restore drill, an external uptime + data-freshness monitor |
+
+**Launch in two steps**
+
+*Step A - minimum to be live and honest (about 2 weeks, one person)*
+1. 10.1-10.5: VM, domain, HTTPS, deploy with `AUTH_MODE=local`, data loaded, **real Telegram alert received**.
+2. 10.6 + 11.1-11.4: 72-hour unattended run, freshness monitor, retention, nightly baseline refresh, gap banner.
+3. 10.7: backups offsite + restore drill. 10.9: legal and attribution page.
+4. 11.5: viewer-only sign-up. 12.1-12.3: load test, edge cache, PDF/imagery queue.
+5. 15.1-15.4: model registry, promotion gate, data validation, skew check (so the model cannot silently change).
+6. 14.1: acceptance run by someone who did not build it. Then open to users.
+
+*Step B - after launch, as live data accumulates (weeks 3-6)*
+13.1-13.2 (unmapped large sources, one alert per incident), 13.3 + 15.6 (live precision from analyst decisions), 15.5 drift monitoring, 15.7 scheduled retrain with human promotion, 13.7 more verified incidents, 11.6-11.8 resets / error tracking / rehearsed upgrades, 14.2-14.5 security scans, runbooks, two-week SLO table, **v1.0 tag**.
+
+**Not planned (say so, do not pretend)**: multi-region or high availability, MFA, a real identity provider (proxy mode is ready, untested), a large-scale crowd beyond what the load test shows, automatic model promotion.
+
+**What only you can supply**: the VM and domain, the Telegram bot token, a FIRMS key (optional but recommended), a second person for the acceptance run, a decision on who the analysts are.
+
+**Go-live gate (all must be true)**: HTTPS site up 72 h with no manual restart, one real Telegram alert, restore of last night's backup on another machine, load-test table in the README, sign-up works as viewer-only, acceptance checklist passed, README matches the live system.
+
+---
+
 **Honest starting point.** Built: pipeline, model, alerts, replay, dashboard, PDF, auth/roles/audit, offline mode, backup scripts. Never done: a
 deploy on a real VM, a real Telegram message, a load test, uptime monitoring, a restore on another machine, self-sign-up, anything run for
 more than a day unattended. The plan below is mostly about those.

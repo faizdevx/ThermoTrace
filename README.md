@@ -43,6 +43,8 @@ ThermoTrace is a Web GIS that does two things on one map:
 
 ---
 
+**New here? Read the [user guide](docs/USER_GUIDE.md): how to find a fire and its industrial link in five minutes.**
+
 ## Dashboard
 
 ![National view: heat-density grid for crop and forest fires, industrial sources as points, facilities off](docs/images/national_view.png)

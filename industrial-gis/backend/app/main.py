@@ -64,6 +64,15 @@ app.add_middleware(
     expose_headers=["X-Total-Count", "X-Data-Revision", "Content-Disposition"],
 )
 
+@app.middleware("http")
+async def read_only_demo(request, call_next):
+    """DEMO_READONLY=true: the public demo user can read everything and change nothing."""
+    if get_settings().demo_readonly and request.method not in ("GET", "HEAD", "OPTIONS"):
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"detail": "This is a read-only public demo; decisions and admin actions are disabled."}, status_code=403)
+    return await call_next(request)
+
+
 app.include_router(api_router)
 register_error_handlers(app)
 

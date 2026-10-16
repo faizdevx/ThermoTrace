@@ -86,3 +86,32 @@ def test_decisions_are_disabled_without_a_server_token(client, monkeypatch):
     config._settings = None
     aid = _first(client)["alert_id"]
     assert client.post(f"/api/alerts/{aid}/decision", json={"decision": "unsure"}, headers={"X-Analyst-Token": "x"}).status_code == 503
+
+
+def test_report_pdf_is_served_even_without_imagery_or_tiles(client, monkeypatch):
+    from backend.app.services import imagery, report
+
+    def no_imagery(*a, **k):
+        raise RuntimeError("stac down")
+
+    def no_tiles(url):
+        raise OSError("offline")
+    monkeypatch.setattr(imagery, "chip_for", no_imagery)
+    monkeypatch.setattr(report, "_http", no_tiles)
+    aid = _first(client)["alert_id"]
+    r = client.get(f"/api/alerts/{aid}/report.pdf")
+    assert r.status_code == 200 and r.headers["content-type"] == "application/pdf"
+    assert r.content.startswith(b"%PDF") and f"thermotrace-alert-{aid}.pdf" in r.headers["content-disposition"]
+    assert client.get("/api/alerts/999999/report.pdf").status_code == 404
+
+
+def test_dashboard_reads_alerts_sources_and_runs(client, db):
+    with db.cursor() as cur:
+        cur.execute("""INSERT INTO thermal_runs (status, finished_at, summary) VALUES
+            ('success', now() - interval '2 hours', '{"by_class": {"agricultural_burning": 8, "industrial_persistent": 2}}'),
+            ('success', now() - interval '1 hour', '{"by_class": {"agricultural_burning": 6, "industrial_persistent": 4}}')""")
+    db.commit()
+    d = client.get("/api/dashboard").json()
+    assert d["backend"] == "postgis" and d["alerts"]["today"] >= 1 and d["alerts"]["by_status"]
+    assert len(d["class_mix"]) == 2 and d["class_mix"][1]["by_class"]["industrial_persistent"] == 4
+    assert isinstance(d["top_states"], list) and "model" in d

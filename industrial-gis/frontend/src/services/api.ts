@@ -5,6 +5,7 @@
  * the nginx container proxy forward it to the FastAPI backend).
  */
 import type {
+  DashboardData,
   AlertDecision,
   AlertList,
   ThermalAlert,
@@ -211,4 +212,8 @@ export function postAlertDecision(
   return requestJson(`/alerts/${id}/decision`, {
     method: 'POST', body: { decision, note, analyst }, headers: { 'X-Analyst-Token': token },
   });
+}
+
+export function fetchDashboard(signal?: AbortSignal): Promise<DashboardData> {
+  return requestJson('/dashboard', { signal });
 }

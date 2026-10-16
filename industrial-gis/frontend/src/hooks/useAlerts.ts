@@ -10,6 +10,7 @@ export function useAlerts() {
   const [available, setAvailable] = useState(false);
   const [decisionsEnabled, setDecisionsEnabled] = useState(false);
   const [channels, setChannels] = useState<string[]>([]);
+  const [demoReadonly, setDemoReadonly] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<ThermalAlert | null>(null);
@@ -20,7 +21,7 @@ export function useAlerts() {
   useEffect(() => {
     const controller = new AbortController();
     fetchAlerts(undefined, controller.signal)
-      .then(r => { setAlerts(r.alerts); setAvailable(r.available); setDecisionsEnabled(r.decisions_enabled); setChannels(r.channels); setError(null); })
+      .then(r => { setAlerts(r.alerts); setAvailable(r.available); setDecisionsEnabled(r.decisions_enabled); setChannels(r.channels); setDemoReadonly(!!r.demo_readonly); setError(null); })
       .catch(e => { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : 'Alerts unavailable'); });
     return () => controller.abort();
   }, [tick]);
@@ -39,7 +40,7 @@ export function useAlerts() {
     return () => controller.abort();
   }, [selectedId, tick]);
 
-  return { alerts, available, decisionsEnabled, channels, error, selectedId, select: setSelectedId, detail, refresh };
+  return { alerts, available, decisionsEnabled, demoReadonly, channels, error, selectedId, select: setSelectedId, detail, refresh };
 }
 
 export type AlertsState = ReturnType<typeof useAlerts>;

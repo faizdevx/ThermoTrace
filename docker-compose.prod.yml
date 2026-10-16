@@ -1,0 +1,39 @@
+# Public read-only demo on one VM:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# See docs/DEPLOY.md. Only Caddy (80/443) is published; the database, API and worker stay on the internal network.
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend: { condition: service_started }
+
+  db:
+    ports: !reset []
+  api:
+    ports: !reset []
+    environment:
+      DEMO_READONLY: "true"          # every POST/PUT/DELETE answers 403, whatever tokens are sent
+      ANALYST_TOKEN: ""
+      ADMIN_TOKEN: ""
+      ALLOWED_ORIGINS: https://${DOMAIN:-localhost}
+  frontend:
+    ports: !reset []
+  thermal:
+    # the 365-day baseline travels as a parquet file in the demo bundle (the database view needs 1.9 M archived detections)
+    environment:
+      THERMAL_BASELINE_DIR: /data/baseline
+    volumes:
+      - ./demo-bundle/baseline:/data/baseline:ro
+
+volumes:
+  caddy_data:
+  caddy_config:

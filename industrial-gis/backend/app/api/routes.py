@@ -424,17 +424,41 @@ def thermal_model() -> dict[str, Any]:
     return {"available": False, "reason": "No trained model registered. Run: python industrial-data/scripts/evaluate.py"}
 
 
+@router.get("/dashboard")
+def dashboard() -> dict[str, Any]:
+    """Alerts today, class mix over time, top states and the model card in one response (the dashboard tab)."""
+    from backend.app.services import dashboard as dash
+    metrics = None
+    m = thermal_model()
+    if m.get("available"):
+        metrics = m.get("metrics")
+    if _live():
+        try:
+            from backend.app.db import get_engine
+            conn = get_engine().raw_connection()
+            try:
+                return dash.from_postgis(conn, metrics)
+            finally:
+                conn.close()
+        except Exception as exc:  # noqa: BLE001 - fall back to the snapshot rather than a blank dashboard
+            logger.warning("dashboard from PostGIS failed (%s); using the snapshot", exc)
+    backend = _thermal_backend()
+    feats, _ = backend.list_sources(_thermal_filters(None, None, None, None, False, None, None), thermal_repo.MAX_LIMIT, 0)
+    return dash.from_features(feats, metrics)
+
+
 # ---------------------------------------------------------------- alerts (analyst inbox)
 @router.get("/alerts")
 def list_alerts(status: str | None = Query(default=None, pattern="^(open|confirmed|rejected|unsure)$"),
                 limit: int = Query(default=100, ge=1, le=500)) -> dict[str, Any]:
     """Alerts, open ones first. Needs PostGIS (alerts are written by the thermal worker); empty in synthetic mode."""
     if not _live():
-        return {"available": False, "alerts": [], "decisions_enabled": False, "channels": []}
+        return {"available": False, "alerts": [], "decisions_enabled": False, "channels": [], "demo_readonly": get_settings().demo_readonly}
     from backend.app.services import alerts_repo
     rows = alerts_repo.list_alerts(status, limit)
     return {"available": True, "alerts": rows, "channels": alerts_repo.channels(rows),
-            "decisions_enabled": bool(get_settings().analyst_token)}
+            "decisions_enabled": bool(get_settings().analyst_token) and not get_settings().demo_readonly,
+            "demo_readonly": get_settings().demo_readonly}
 
 
 @router.get("/alerts/{alert_id}")
@@ -446,6 +470,27 @@ def alert_detail(alert_id: int) -> dict[str, Any]:
     if a is None:
         raise HTTPException(status_code=404, detail="Unknown alert.")
     return a
+
+
+@router.get("/alerts/{alert_id}/report.pdf")
+def alert_report(alert_id: int, imagery: bool = True) -> Response:
+    """One-page-ish incident report for the alert: maps, imagery, reasons, timeline, decisions."""
+    if not _live():
+        raise HTTPException(status_code=404, detail="Alerts need the PostGIS stack.")
+    from backend.app.services import alerts_repo, report
+    a = alerts_repo.get_alert(alert_id)
+    if a is None:
+        raise HTTPException(status_code=404, detail="Unknown alert.")
+    img = None
+    if imagery and a.get("last_seen"):
+        try:   # the cached analysis when the worker made one; computed on demand otherwise (20-30 s the first time)
+            from backend.app.services import imagery as imagery_service
+            img = imagery_service.chip_for(a["source_id"], a["lon"], a["lat"], a["last_seen"], a.get("first_seen"))
+        except Exception as exc:  # noqa: BLE001 - a report without imagery beats no report
+            logger.warning("report imagery for alert %s unavailable: %s", alert_id, exc)
+    pdf = report.build_pdf(a, img)
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="thermotrace-alert-{alert_id}.pdf"'})
 
 
 @router.post("/alerts/{alert_id}/decision")

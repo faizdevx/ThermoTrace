@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { postAlertDecision } from '@/services/api';
+import { API_BASE, postAlertDecision } from '@/services/api';
 import { alertRow, decisionHint, DECISION_LABEL, SEVERITY_COLOR, STATUS_LABEL } from '@/components/alertView';
 import type { AlertsState } from '@/hooks/useAlerts';
 import type { AlertDecision, ThermalAlert } from '@/types/industrial';
@@ -16,13 +16,16 @@ const btn = (bg: string, disabled: boolean): React.CSSProperties => ({
   fontWeight: 700, fontSize: 13, cursor: disabled ? 'not-allowed' : 'pointer',
 });
 
-function Decide({ alert, enabled, onDone }: { alert: ThermalAlert; enabled: boolean; onDone: () => void }) {
+function Decide({ alert, enabled, demo, onDone }: { alert: ThermalAlert; enabled: boolean; demo?: boolean; onDone: () => void }) {
   const [token, setToken] = useState(() => stored('tt-analyst-token', 'session'));
   const [analyst, setAnalyst] = useState(() => stored('tt-analyst-name', 'local'));
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const hint = decisionHint(enabled, token);
+  if (demo) {
+    return <p data-testid="demo-readonly" style={{ marginTop: 10, padding: 10, borderRadius: 10, background: '#f5f3ff', color: '#5b21b6', fontSize: 12 }}>Public read-only demo: analyst decisions (Confirm / Reject / Unsure) are disabled here. Run the stack yourself to record decisions into <code>labels</code>.</p>;
+  }
 
   const send = async (d: AlertDecision) => {
     setBusy(true);
@@ -60,15 +63,21 @@ function Decide({ alert, enabled, onDone }: { alert: ThermalAlert; enabled: bool
   );
 }
 
-function Detail({ a, enabled, onLocate, onDone }: { a: ThermalAlert; enabled: boolean; onLocate: (a: ThermalAlert) => void; onDone: () => void }) {
+function Detail({ a, enabled, demo, onLocate, onDone }: { a: ThermalAlert; enabled: boolean; demo?: boolean; onLocate: (a: ThermalAlert) => void; onDone: () => void }) {
   const row = alertRow(a);
   return (
     <div data-testid="alert-detail">
       <p style={{ margin: '0 0 4px', fontSize: 13, color: '#334155' }}>{a.summary}</p>
       <p style={{ margin: '0 0 6px', fontSize: 11, color: '#64748b' }}>Delivery: {row.channels}</p>
-      <button onClick={() => onLocate(a)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', fontSize: 12, cursor: 'pointer' }}>
-        Show on map + satellite imagery
-      </button>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <button onClick={() => onLocate(a)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', fontSize: 12, cursor: 'pointer' }}>
+          Show on map + satellite imagery
+        </button>
+        <a data-testid="report-link" href={`${API_BASE}/alerts/${a.alert_id}/report.pdf`} download
+          style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #0f172a', background: '#0f172a', color: '#fff', fontSize: 12, textDecoration: 'none', fontWeight: 600 }}>
+          Download PDF report
+        </a>
+      </div>
       <ol data-testid="alert-timeline" style={{ listStyle: 'none', padding: 0, margin: '10px 0 0', borderLeft: '2px solid #e2e8f0' }}>
         {(a.timeline ?? []).map((e, i) => (
           <li key={i} style={{ padding: '3px 0 3px 10px', fontSize: 12 }}>
@@ -78,7 +87,7 @@ function Detail({ a, enabled, onLocate, onDone }: { a: ThermalAlert; enabled: bo
         ))}
       </ol>
       {a.is_test ? <p style={{ fontSize: 11, color: '#64748b' }}>Test alert: decisions on it are still written to labels (flagged is_test).</p> : null}
-      <Decide key={a.alert_id} alert={a} enabled={enabled} onDone={onDone} />
+      <Decide key={a.alert_id} alert={a} enabled={enabled} demo={demo} onDone={onDone} />
     </div>
   );
 }
@@ -123,7 +132,7 @@ export function AlertInbox({ alerts, open, onClose, onLocate }: {
                 <span style={{ display: 'block', fontSize: 11, color: '#64748b', marginTop: 2 }}>{row.meta}</span>
               </button>
               {active && detail && detail.alert_id === a.alert_id && (
-                <Detail a={detail} enabled={alerts.decisionsEnabled} onLocate={onLocate} onDone={alerts.refresh} />
+                <Detail a={detail} enabled={alerts.decisionsEnabled} demo={alerts.demoReadonly} onLocate={onLocate} onDone={alerts.refresh} />
               )}
             </div>
           );

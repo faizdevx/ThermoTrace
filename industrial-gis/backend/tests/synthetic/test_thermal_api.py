@@ -183,3 +183,26 @@ def test_imagery_endpoint_returns_the_full_evidence_shape(client, monkeypatch):
     assert d["available"] and d["indices"]["dnbr_p95"] == 0.4 and d["hot_pixels"]["count"] == 3 and d["before_scene"]["id"] == "S2B_y"
     assert seen["first_seen"] == "2026-10-02T20:00:00+00:00"          # the route passes the first detection time through
     assert client.get("/api/thermal/sources/nope/imagery").status_code == 404
+
+
+def test_dashboard_endpoint_summarises_the_snapshot(client):
+    d = client.get("/api/dashboard").json()
+    assert d["backend"] == "snapshot" and d["totals"]["sources"] == 4
+    assert d["by_class"] == {"industrial_persistent": 1, "industrial_fire_candidate": 1, "agricultural_burning": 1, "vegetation_fire": 1}
+    states = {s["state"]: s for s in d["top_states"]}
+    assert states["Jharkhand"]["flagged"] == 1 and states["Punjab"]["industrial"] == 0 and d["alerts"]["today"] == 0
+    assert d["class_mix"] == [] and "model" in d
+
+
+def test_public_demo_mode_refuses_every_write(client, monkeypatch):
+    from backend.app import config
+    monkeypatch.setenv("DEMO_READONLY", "true")
+    monkeypatch.setenv("ANALYST_TOKEN", "t")
+    monkeypatch.setenv("ADMIN_TOKEN", "a")
+    monkeypatch.setattr(config, "_settings", None)
+    for method, url, hdr in (("post", "/api/alerts/1/decision", {"X-Analyst-Token": "t"}), ("post", "/api/admin/sync/trigger", {"X-Admin-Token": "a"})):
+        r = getattr(client, method)(url, json={"decision": "confirmed"}, headers=hdr)
+        assert r.status_code == 403 and "read-only" in r.json()["detail"]
+    assert client.get("/api/thermal/stats").status_code == 200               # reading is untouched
+    assert client.get("/api/alerts").json()["demo_readonly"] is True
+    config._settings = None

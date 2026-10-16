@@ -5,7 +5,7 @@ import type { AlertsState } from '@/hooks/useAlerts';
 import type { ThermalAlert } from '@/types/industrial';
 
 const post = vi.fn();
-vi.mock('@/services/api', () => ({ postAlertDecision: (...a: unknown[]) => post(...a) }));
+vi.mock('@/services/api', () => ({ API_BASE: '/api', postAlertDecision: (...a: unknown[]) => post(...a) }));
 
 const alert: ThermalAlert = {
   alert_id: 5, facility_key: 'osm:1', source_id: 's1', site_ref: 'osm:1', site_name: 'Plant A', site_kind: 'steel_plant', state: 'Odisha',
@@ -62,6 +62,13 @@ describe('AlertInbox', () => {
     fireEvent.change(screen.getByLabelText('Analyst token'), { target: { value: 'bad' } });
     fireEvent.click(screen.getByText('Reject'));
     expect(await screen.findByText('Invalid analyst token.')).toBeTruthy();
+  });
+
+  it('offers the PDF incident report one click from the alert', () => {
+    render(<AlertInbox alerts={state()} open onClose={() => {}} onLocate={() => {}} />);
+    const link = screen.getByTestId('report-link') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/api/alerts/5/report.pdf');
+    expect(link.hasAttribute('download')).toBe(true);
   });
 
   it('locates the source on the map and renders nothing when closed or unavailable', () => {

@@ -31,7 +31,7 @@ const CARDS: { key: keyof ThermalCardValues; label: string; icon: string; color:
   { key: 'sources', label: 'Thermal sources', icon: '🔥', color: '#ea580c', bg: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)', border: '#fed7aa',
     hint: 'Classified NASA FIRMS sources matching the thermal filters' },
   { key: 'alerts', label: 'Alerts', icon: '🚨', color: '#dc2626', bg: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)', border: '#fecaca',
-    hint: 'Sources flagged watch / high / critical' },
+    hint: 'Open alerts in the inbox (a source that looks like an industrial fire or runs far above its facility baseline); the thermal-source flag when no inbox is available' },
   { key: 'persistent', label: 'Persistent industrial', icon: '🏭', color: '#b91c1c', bg: 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)', border: '#fecdd3',
     hint: 'Recurring heat at a known facility' },
   { key: 'fireCandidates', label: 'Possible industrial fire', icon: '⚠️', color: '#c2410c', bg: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)', border: '#fde68a',

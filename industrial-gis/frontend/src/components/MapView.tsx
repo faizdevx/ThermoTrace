@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
@@ -6,6 +6,7 @@ import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import 'leaflet.markercluster';
 import { fetchFacility } from '@/services/api';
 import { facilityPopupHtml } from '@/components/facilityPopup';
+import { cellOpacity, DENSITY_ZOOM, dominantClass, splitForZoom } from '@/components/thermalDensity';
 import type {
   BoundaryFeature,
   FeatureCollection,
@@ -146,6 +147,8 @@ export function MapView({
   const facilityLayerRef = useRef<L.LayerGroup | null>(null);
   const footprintLayerRef = useRef<L.LayerGroup | null>(null);
   const thermalMarkersRef = useRef<Map<string, { marker: L.CircleMarker; sig: string }>>(new Map());
+  const densityLayerRef = useRef<L.LayerGroup | null>(null);
+  const [zoomLevel, setZoomLevel] = useState(5);
   const onSelectThermalRef = useRef(onSelectThermal);
   useEffect(() => { onSelectThermalRef.current = onSelectThermal; }, [onSelectThermal]);
 
@@ -159,11 +162,17 @@ export function MapView({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    const map = L.map(containerRef.current, { center: [24.5, 80.5], zoom: 6, zoomControl: false });
+    const map = L.map(containerRef.current, { center: [22.5, 80.5], zoom: 5, zoomControl: false, zoomSnap: 0.5 });
+    // the whole country at a glance, whatever the screen: mainland India plus a margin
+    map.fitBounds([[7, 68], [36, 97.5]], { padding: [4, 4] });
     map.createPane('boundaries').style.zIndex = '350';
     map.createPane('outline').style.zIndex = '450';
     map.createPane('thermal').style.zIndex = '420';
+    map.createPane('density').style.zIndex = '415';
+    densityLayerRef.current = L.layerGroup([], { pane: 'density' }).addTo(map);
     thermalLayerRef.current = L.layerGroup([], { pane: 'thermal' }).addTo(map);
+    map.on('zoomend', () => setZoomLevel(Math.floor(map.getZoom())));
+    setZoomLevel(Math.floor(map.getZoom()));
     map.createPane('facilities').style.zIndex = '410';
     facilityLayerRef.current = L.layerGroup([], { pane: 'facilities' }).addTo(map);
     footprintLayerRef.current = L.layerGroup([], { pane: 'facilities' }).addTo(map);
@@ -173,7 +182,7 @@ export function MapView({
 
     // Basemap: OpenStreetMap standard tiles (https://operations.osmfoundation.org/policies/tiles/ - fine for
     // light use; set VITE_TILE_URL to your own tile provider for production traffic). Map DATA: OSM (ODbL).
-    const tileUrl = (import.meta.env.VITE_TILE_URL as string | undefined) ?? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const tileUrl = (import.meta.env.VITE_TILE_URL as string | undefined) || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
     L.tileLayer(tileUrl, {
       attribution:
         '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · ' +
@@ -268,14 +277,28 @@ export function MapView({
     if (toAdd.length) cluster.addLayers(toAdd);
   }, [sites]);
 
-  // ── Thermal sources: canvas circle markers, reconciled by source id (no flicker on live refresh) ──
+  // ── Thermal sources: heat-density grid for the bulk at low zoom, points for industrial ones and at high zoom ──
   useEffect(() => {
     const layer = thermalLayerRef.current;
+    const density = densityLayerRef.current;
     const map = mapRef.current;
     if (!layer || !map) return;
     const existing = thermalMarkersRef.current;
+    const { points, cells } = splitForZoom(thermal?.features ?? [], zoomLevel, selectedThermalId);
     const incoming = new Map<string, ThermalFeature>();
-    for (const f of thermal?.features ?? []) incoming.set(f.properties.source_id, f);
+    for (const f of points) incoming.set(f.properties.source_id, f);
+
+    density?.clearLayers();
+    const maxCount = Math.max(1, ...cells.map(c => c.count));
+    for (const c of cells) {
+      const cls = dominantClass(c);
+      const rect = L.rectangle([[c.south, c.west], [c.south + c.size, c.west + c.size]], {
+        pane: 'density', stroke: false, fillColor: thermalColors[cls] ?? '#64748b', fillOpacity: cellOpacity(c.count, maxCount), interactive: true,
+      });
+      rect.bindTooltip(`${c.count} thermal source${c.count > 1 ? 's' : ''} (mostly ${cls.replace(/_/g, ' ')}), up to ${c.maxFrp.toFixed(0)} MW - zoom in for the points`, { sticky: true });
+      rect.on('click', () => map.setView([c.south + c.size / 2, c.west + c.size / 2], DENSITY_ZOOM, { animate: true }));
+      density?.addLayer(rect);
+    }
 
     for (const [id, entry] of existing) {
       if (!incoming.has(id)) { layer.removeLayer(entry.marker); existing.delete(id); }
@@ -303,7 +326,7 @@ export function MapView({
       layer.addLayer(marker);
       existing.set(p.source_id, { marker, sig });
     }
-  }, [thermal, thermalColors]);
+  }, [thermal, thermalColors, zoomLevel, selectedThermalId]);
 
   useEffect(() => {
     const layer = facilityLayerRef.current;

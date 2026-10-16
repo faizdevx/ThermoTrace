@@ -86,3 +86,8 @@ body {
   }
 }
 
+
+/* ── Phone width: hide explanatory text, keep the map and the numbers ──── */
+@media (max-width: 640px) {
+  .hidden-mobile { display: none !important; }
+}

@@ -12,8 +12,10 @@ import { ExportMenu } from '@/components/ExportMenu';
 import { ThermalControls } from '@/components/ThermalControls';
 import { ThermalDetails } from '@/components/ThermalDetails';
 import { AlertInbox } from '@/components/AlertInbox';
+import { Dashboard } from '@/components/Dashboard';
 import { openCount } from '@/components/alertView';
 import { useAlerts } from '@/hooks/useAlerts';
+import { useNarrow } from '@/hooks/useNarrow';
 import { useThermal } from '@/hooks/useThermal';
 import {
   ApiError,
@@ -57,7 +59,7 @@ export default function App() {
   const [viewport, setViewport] = useState<MapViewport | null>(null);
   // the OSM site layer is a North-East pilot; the thermal layer is the default view
   const [showSites, setShowSites] = useState(false);
-  const [showFacilities, setShowFacilities] = useState(true);
+  const [showFacilities, setShowFacilities] = useState(false);   // off by default: the national view is the thermal sources
   const [facilities, setFacilities] = useState<FacilityCollection | null>(null);
 
   // ── Data state ────────────────────────────────────────────────────────────
@@ -118,6 +120,9 @@ export default function App() {
   const alerts = useAlerts();
   const refreshAlerts = alerts.refresh;
   const [showInbox, setShowInbox] = useState(false);
+  const [view, setView] = useState<'map' | 'dashboard'>('map');
+  const narrow = useNarrow();
+  const [layersOpen, setLayersOpen] = useState(false);
   const refreshThermal = thermal.refresh;
   // a new FIRMS snapshot was published: refetch thermal data only (sites are unaffected)
   const handleThermalEvent = useCallback(() => {
@@ -133,7 +138,11 @@ export default function App() {
 
   // ── Debounced inputs ──────────────────────────────────────────────────────
   const debouncedCommitSearch = useDebouncedCallback((q: string) => setActiveQuery(q.trim()), 420);
-  const debouncedViewport = useDebouncedCallback((v: MapViewport) => setViewport(v), 500);
+  const debouncedViewport = useDebouncedCallback((v: MapViewport) => {
+    // a hidden map (dashboard tab, 0 x 0 px) reports an empty box: keep the last real viewport
+    const [w, s, e, n] = v.bbox.split(',').map(Number);
+    if (e > w && n > s) setViewport(v);
+  }, 500);
 
   const handleSearchDraftChange = useCallback((value: string) => {
     setSearchDraft(value);
@@ -421,7 +430,7 @@ export default function App() {
         />
       </div>
 
-      <div style={{ flexShrink: 0, padding: '10px 14px 0' }}>
+      <div style={{ flexShrink: 0, padding: '10px 14px 0', display: view === 'map' ? undefined : 'none' }}>
         {showSites ? (
           <>
             <StatisticsCards statistics={statistics} onShowAnalytics={() => setShowAnalytics(true)} />
@@ -433,8 +442,8 @@ export default function App() {
           </>
         ) : (
           <>
-            <ThermalCards values={thermalCardValues(thermal.stats, thermal.data, facilities)} />
-            <p style={{ margin: '4px 4px 0', fontSize: 10, color: '#94a3b8' }}>
+            <ThermalCards values={{ ...thermalCardValues(thermal.stats, thermal.data, facilities), ...(alerts.available ? { alerts: openCount(alerts.alerts) } : {}) }} />
+            <p className="hidden-mobile" style={{ margin: '4px 4px 0', fontSize: 10, color: '#94a3b8' }}>
               Thermal cards follow the thermal filters (class, window, power, alerts); facility cards count the whole
               merged facility database. Tick <em>Industrial sites (OSM pilot)</em> to see the pilot's own cards.
             </p>
@@ -451,7 +460,7 @@ export default function App() {
           </span>
         )}
         {!isRefreshing && !error && sites && (
-          <span id="visible-count" style={{ fontSize: 12, color: '#64748b' }} aria-live="polite">
+          <span id="visible-count" className="hidden-mobile" style={{ fontSize: 12, color: '#64748b' }} aria-live="polite">
             {!showSites && (datasetEmpty
               // the pilot import is empty: say so without covering the thermal / facility map
               ? <><strong style={{ color: '#b45309' }}>No data imported yet</strong> for the OSM industrial-sites pilot (thermal sources and facilities are unaffected; see the README bootstrap step). </>
@@ -494,7 +503,21 @@ export default function App() {
       </div>
 
       {/* ── Map ─────────────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, minHeight: 0, padding: '0 14px 14px' }}>
+      <div role="tablist" aria-label="Views" style={{ flexShrink: 0, display: 'flex', gap: 6, padding: '8px 14px 0' }}>
+        {(['map', 'dashboard'] as const).map(v => (
+          <button key={v} role="tab" aria-selected={view === v} data-testid={`tab-${v}`} onClick={() => setView(v)}
+            style={{ padding: '6px 16px', borderRadius: 99, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+              background: view === v ? '#0f172a' : 'rgba(255,255,255,0.7)', color: view === v ? '#fff' : '#334155' }}>
+            {v === 'map' ? 'Map' : 'Dashboard'}
+          </button>
+        ))}
+      </div>
+      {view === 'dashboard' && (
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '10px 14px 14px' }}>
+          <Dashboard onOpenInbox={() => { setView('map'); setShowInbox(true); }} />
+        </div>
+      )}
+      <div style={{ flex: 1, minHeight: 0, padding: '0 14px 14px', display: view === 'map' ? undefined : 'none' }}>
         <div style={{
           width: '100%', height: '100%', borderRadius: 20, overflow: 'hidden', position: 'relative',
           boxShadow: '0 8px 40px rgba(15,23,42,0.12), 0 2px 8px rgba(15,23,42,0.06)',
@@ -534,10 +557,14 @@ export default function App() {
 
           {/* Layer toggles */}
           <div style={{
-            position: 'absolute', top: 12, right: 12, zIndex: 500, background: 'rgba(255,255,255,0.94)',
+            position: 'absolute', ...(narrow ? { bottom: 70, right: 12 } : { top: 12, right: 12 }), zIndex: 500, background: 'rgba(255,255,255,0.94)',
             borderRadius: 12, padding: '8px 12px', fontSize: 11, boxShadow: '0 2px 12px rgba(15,23,42,0.12)',
           }}>
-            <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', margin: '0 0 4px' }}>Layers</p>
+            <p onClick={narrow ? () => setLayersOpen(o => !o) : undefined} role={narrow ? 'button' : undefined}
+              style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', margin: narrow && !layersOpen ? 0 : '0 0 4px', cursor: narrow ? 'pointer' : undefined }}>
+              Layers{narrow ? (layersOpen ? ' ▾' : ' ▸') : ''}
+            </p>
+            <div style={{ display: narrow && !layersOpen ? 'none' : undefined }}>
             <label style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}
               title="Merged OSM + WRI + Global Energy Monitor + VIIRS Nightfire facilities (blue = confirmed by 2+ sources)">
               <input id="toggle-facilities" type="checkbox" checked={showFacilities} onChange={e => setShowFacilities(e.target.checked)} /> Facilities ({facilities?.meta.total ?? 0})
@@ -559,6 +586,7 @@ export default function App() {
               title={`Districts load when zoomed in (zoom ≥ ${DISTRICT_MIN_ZOOM}) or when a state is selected`}>
               <input id="toggle-districts" type="checkbox" checked={showDistricts} onChange={e => setShowDistricts(e.target.checked)} /> Districts
             </label>
+            </div>
           </div>
 
           {/* Legend (site markers only) */}
@@ -584,7 +612,7 @@ export default function App() {
           {alerts.available && (
             <button
               data-testid="open-inbox" onClick={() => setShowInbox(v => !v)}
-              style={{ position: 'absolute', top: 12, right: 12, zIndex: 600, padding: '7px 12px', borderRadius: 99, border: 'none', cursor: 'pointer',
+              style={{ position: 'absolute', ...(narrow ? { bottom: 34, left: 12 } : { top: 12, right: 12 }), zIndex: 600, padding: '7px 12px', borderRadius: 99, border: 'none', cursor: 'pointer',
                 background: openCount(alerts.alerts) ? '#dc2626' : '#0f172a', color: '#fff', fontWeight: 700, fontSize: 12 }}
             >
               Alerts{openCount(alerts.alerts) ? ` (${openCount(alerts.alerts)} open)` : ''}

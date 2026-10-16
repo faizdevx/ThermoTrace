@@ -1,0 +1,18 @@
+# TLS terminator for the public demo. Set DOMAIN to a name whose DNS A/AAAA record points at this VM and Caddy gets and renews a
+# Let's Encrypt certificate by itself (ports 80 and 443 must be reachable). DOMAIN=localhost uses Caddy's internal CA (local test).
+{$DOMAIN:localhost} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# the nginx in the frontend container serves the app, proxies /api and rate-limits the expensive endpoints
+	reverse_proxy frontend:80 {
+		flush_interval -1
+	}
+}

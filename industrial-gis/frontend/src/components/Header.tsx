@@ -94,7 +94,7 @@ export function Header({
         <div style={{ width: 1, height: 36, background: '#e2e8f0', flexShrink: 0 }} className="hidden-mobile" />
 
         {!pilotControls && (
-          <p style={{ margin: 0, fontSize: 12.5, color: '#475569', flex: '1 1 300px' }}>
+          <p className="hidden-mobile" style={{ margin: 0, fontSize: 12.5, color: '#475569', flex: '1 1 300px' }}>
             NASA FIRMS heat sources classified against a merged facility database and a 365-day baseline.
             Search and site filters belong to the OSM industrial-sites pilot - tick it under Layers to use them.
           </p>

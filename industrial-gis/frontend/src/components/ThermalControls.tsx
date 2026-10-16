@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { thermalExportUrl } from '@/services/api';
 import { WINDOWS, type useThermal } from '@/hooks/useThermal';
 import { formatAge } from '@/components/LiveStatus';
+import { useNarrow } from '@/hooks/useNarrow';
 
 type ThermalState = ReturnType<typeof useThermal>;
 
@@ -13,7 +14,8 @@ const box: React.CSSProperties = {
 };
 
 export function ThermalControls({ t }: { t: ThermalState }) {
-  const [open, setOpen] = useState(true);
+  const narrow = useNarrow();
+  const [open, setOpen] = useState(!narrow);      // phones start with the panel folded so the map is visible
   const age = t.status?.freshness?.latest_detection_age_seconds ?? null;
   const fresh = t.status?.freshness?.state;
   const alerts = t.stats ? t.stats.alerts.watch + t.stats.alerts.high + t.stats.alerts.critical : 0;

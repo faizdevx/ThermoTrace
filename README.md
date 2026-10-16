@@ -45,6 +45,10 @@ ThermoTrace is a Web GIS that does two things on one map:
 
 ## Dashboard
 
+![National view: heat-density grid for crop and forest fires, industrial sources as points, facilities off](docs/images/national_view.png)
+
+_National view (2026-10-16, 3,073 sources): below zoom 8 the crop and forest fires are a heat-density grid (cell colour = dominant class, opacity = how many sources) and only industrial sources, alerting sources and the selected one stay as points; from zoom 8 every source is a point. Facilities are a separate toggle and start off._
+
 ![ThermoTrace dashboard: classified FIRMS thermal sources over the merged facility layer](docs/images/dashboard.png)
 
 _Dashboard captured 2026-10-15 from the Docker stack (PostGIS, API, thermal worker, frontend): 2,757 classified FIRMS thermal sources from 7,807 VIIRS detections, status "live" (newest detection about 3 h old), over the 12,762-facility layer (small dots; blue = confirmed by two or more sources). Filled circles are thermal sources (size = radiative power, colour = class, dark ring = alert). The left panel filters by class, window, minimum power and alerts and exports CSV/GeoJSON; the top-right box toggles the facility layer (with the source attributions), the OSM north-east pilot layer and the boundaries. The site cards read 0 because the optional OSM north-east pilot import was not run on this fresh database; the header says so instead of covering the map._
@@ -98,7 +102,8 @@ Regenerate: `python industrial-data/scripts/evaluate.py [--refresh-features] && 
 | 5 | Sentinel-2 L2A after/before chips (true colour + SWIR), dNBR, SWIR hot pixels, Landsat 8/9 TIRS check, cached, `/api/thermal/sources/{id}/imagery`, dNBR in the reasons | **done**; imagery tested as model features and **not** adopted (see Finding 6) |
 | 6 | Industrial-fire alerting (rule, severity, dedupe per facility per 6 h), webhook + Telegram + email delivery, analyst inbox (Confirm / Reject / Unsure + note) writing to `labels`, incident timeline | **done**; delivery verified against a local fake Telegram server, **not yet against a real bot** (needs your `TELEGRAM_BOT_TOKEN`) - see [Alerting](#alerting-and-the-analyst-loop) |
 | 7 | Replay mode: archived FIRMS for documented incidents through the live pipeline on a virtual clock; demo video | **done**: 3 incidents + a gas flare + a Punjab burning day, all as expected, recorded in [the demo video](docs/demo/thermotrace_replay_demo.mp4); but only **5 of the 22 detected verified incidents** alert (see [docs/REPLAY.md](docs/REPLAY.md)) |
-| 8-9 | judge-facing dashboard, remaining items | planned - see [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) |
+| 8 | Judge-facing product: zoom-dependent map, dashboard tab, PDF incident report, hosted demo, video + deck | **done except hosting**: map, dashboard, PDF report, 2-minute video and 6-slide deck are built and tested; the one-VM demo (Caddy HTTPS, read-only user, rate limits) is **ready and checked locally but not deployed** - no VM or domain - see [Judge-facing product](#judge-facing-product) |
+| 9 | remaining items | planned - see [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) |
 
 ## Baseline: what is normal for this place
 
@@ -272,6 +277,24 @@ _The inbox lists alerts (open first, then by severity). Opening one shows the in
 
 **Limits.** No real Telegram bot, SMTP server or webhook receiver was used in testing (local fakes and mocks only); `ANALYST_TOKEN` is one shared secret, not per-user login; the dashboard's top "Alerts" card still counts the older `alert_level` flag, not these alerts; the server does not yet retrain on analyst labels - they are collected and queryable.
 
+## Judge-facing product
+
+| Deliverable | State |
+|---|---|
+| **Declutter the map** | done: heat-density grid at low zoom, points from zoom 8; industrial and alerting sources are always points; facilities are their own toggle, off by default; the map opens on the whole country (`MapView`, `thermalDensity.ts`, 4 tests) |
+| **Dashboard tab** | done: alerts today (by severity, open in the inbox), class mix over time (one point per published FIRMS batch, so as old as the worker), top states with the industrial share, the model card with its CI and caveat; `GET /api/dashboard` |
+| **PDF incident report per alert** | done: "Download PDF report" in the inbox, `GET /api/alerts/{id}/report.pdf`: location, why it alerted, two OpenStreetMap maps, the Sentinel-2 after/before chips, dNBR / hot pixels / Landsat, reasons, timeline, analyst decision. [Sample](docs/demo/sample_incident_report.pdf) (Vatva GIDC replay). Says plainly when imagery or tiles are unavailable |
+| **Hosted demo on one VM** | **prepared, not deployed.** `docker-compose.prod.yml` + `deploy/Caddyfile` (automatic HTTPS), `DEMO_READONLY` (every write answers 403), nginx rate limits (6 per minute on imagery and PDF), a lean data bundle (`deploy/demo_bundle.py`, ~50 MB). All of it ran locally as a second stack on `https://localhost:8443`; phone layout checked at 390 px with no sideways scroll. No VM, no domain, no public URL: [docs/DEPLOY.md](docs/DEPLOY.md) |
+| **2-minute video + 6-slide deck** | made and committed, **not uploaded** to an external host: [overview video](docs/demo/thermotrace_overview.mp4) (1:50), [replay video](docs/demo/thermotrace_replay_demo.mp4) (4 min), deck as [PPTX](docs/deck/ThermoTrace_deck.pptx) and [PDF](docs/deck/ThermoTrace_deck.pdf) (problem, data, model, accuracy, live demo, impact; regenerate with `python docs/deck/build_deck.py`) |
+
+![Dashboard tab](docs/images/dashboard_tab.png)
+
+On a phone (390 x 844, captured from the local production stack):
+
+<img src="docs/images/mobile_map.png" alt="Phone: map" width="220"> <img src="docs/images/mobile_dashboard.png" alt="Phone: dashboard" width="220"> <img src="docs/images/mobile_alerts.png" alt="Phone: alert inbox" width="220">
+
+Things that changed on the way: the Alerts card now counts the open alerts in the inbox (it counted the older per-source flag, so it showed 0 beside 6 open alerts); a hidden map (dashboard tab) no longer sends an empty bounding box that made the sites query fail; the first boot of an empty PostGIS container no longer fails `migrate` (the health check probes TCP); phones start with the thermal panel folded and the explanatory text hidden.
+
 ## Replay: prove it on a real event
 
 [![Replay demo: the dashboard on a virtual clock, Vatva GIDC 2020-12-09](docs/demo/vatva-gidc.png)](docs/demo/thermotrace_replay_demo.mp4)
@@ -404,6 +427,8 @@ Development without Docker for the app: run PostGIS yourself, then `uvicorn back
 | `GET /facilities`, `/facilities/{id}` | merged facilities (`bbox,kind,source,limit`) with per-source licences; detail adds the OSM footprint and every source record |
 | `GET /sync/status`, `/sync/history` | per-source freshness (`live/syncing/delayed/offline/not_configured/awaiting_setup`) |
 | `GET /events` | Server-Sent Events: `hello`, `revision`, `sync`, `thermal`; the UI falls back to 10 s polling |
+| `GET /dashboard` | alerts today, class mix over time, top states, model card |
+| `GET /alerts/{id}/report.pdf` | PDF incident report (maps, imagery, reasons, timeline) |
 | `GET /alerts`, `/alerts/{id}` | alert inbox (`status=open|confirmed|rejected|unsure`); detail adds the incident timeline and decisions |
 | `POST /alerts/{id}/decision` | `{decision: confirmed|rejected|unsure, note, analyst}`; needs `X-Analyst-Token` (`ANALYST_TOKEN`), writes `labels` |
 | `POST /admin/sync/trigger` | asks the worker to sync now; needs `ADMIN_TOKEN` (`X-Admin-Token`), disabled when unset |
@@ -421,11 +446,11 @@ TEST_DATABASE_URL=postgresql://user:pw@localhost:5432/postgres python -m pytest 
 cd industrial-gis/frontend && npx tsc --noEmit && npm test && npm run build
 ```
 
-Results on the development machine (2026-10-15): `industrial-data/tests` 350 passed with PostGIS available (about 310 without; includes the ML, imagery, alert and replay tests); API synthetic suite 64 passed; API against PostGIS 38 passed (includes the alert inbox); frontend `tsc` clean, vitest 55 passed. GitHub Actions: the pushes to `main` completed with `success`.
+Results on the development machine (2026-10-15): `industrial-data/tests` 350 passed with PostGIS available (about 310 without; includes the ML, imagery, alert and replay tests); API synthetic suite 74 passed (dashboard, PDF report, read-only mode); API against PostGIS 40 passed (alert inbox, report, dashboard); frontend `tsc` clean, vitest 64 passed. GitHub Actions: the pushes to `main` completed with `success`.
 
 ## Configuration
 
-See `.env.example`. Key variables: `POSTGRES_*`, `ALLOWED_ORIGINS`, `ADMIN_TOKEN`, `OSM_REGION`, `OSM_POLL_INTERVAL_SECONDS`, `OSM_FRESHNESS_TARGET_SECONDS`, `FIRMS_MAP_KEY` (optional), `THERMAL_INTERVAL_SECONDS` (default 600), `THERMAL_FACILITIES_GEOJSON`, `FACILITIES_DIR`, `FACILITIES_BACKEND` (`auto`/`files`/`postgis`), `THERMAL_WINDOW_DAYS`, `THERMAL_IMAGERY` (on by default), `THERMAL_IMAGERY_DIR`, `THERMAL_IMAGERY_PER_CYCLE` (default 4), `THERMAL_IMAGERY_BUDGET_SECONDS` (default 240), `ANALYST_TOKEN`, `ALERT_*` thresholds (incl. `ALERT_VETO_CROP_FRACTION`, `ALERT_VETO_NIGHT_FRACTION`), `REPLAY_DATABASE_URL`, `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`, `ALERT_WEBHOOK_URL` / `ALERT_WEBHOOK_SECRET`, `SMTP_*` / `ALERT_EMAIL_FROM` / `ALERT_EMAIL_TO`, `VITE_TILE_URL`. Never commit `.env`.
+See `.env.example`. Key variables: `POSTGRES_*`, `ALLOWED_ORIGINS`, `ADMIN_TOKEN`, `OSM_REGION`, `OSM_POLL_INTERVAL_SECONDS`, `OSM_FRESHNESS_TARGET_SECONDS`, `FIRMS_MAP_KEY` (optional), `THERMAL_INTERVAL_SECONDS` (default 600), `THERMAL_FACILITIES_GEOJSON`, `FACILITIES_DIR`, `FACILITIES_BACKEND` (`auto`/`files`/`postgis`), `THERMAL_WINDOW_DAYS`, `THERMAL_IMAGERY` (on by default), `THERMAL_IMAGERY_DIR`, `THERMAL_IMAGERY_PER_CYCLE` (default 4), `THERMAL_IMAGERY_BUDGET_SECONDS` (default 240), `ANALYST_TOKEN`, `ALERT_*` thresholds (incl. `ALERT_VETO_CROP_FRACTION`, `ALERT_VETO_NIGHT_FRACTION`), `REPLAY_DATABASE_URL`, `DEMO_READONLY`, `DOMAIN` (production compose), `REPORT_TILE_URL`, `VITE_TILE_URL` (build arg), `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`, `ALERT_WEBHOOK_URL` / `ALERT_WEBHOOK_SECRET`, `SMTP_*` / `ALERT_EMAIL_FROM` / `ALERT_EMAIL_TO`, `VITE_TILE_URL`. Never commit `.env`.
 
 ## Known limitations
 

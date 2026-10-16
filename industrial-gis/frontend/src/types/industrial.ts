@@ -410,4 +410,25 @@ export interface ThermalAlert {
   created_at: string; updated_at: string; lat: number; lon: number;
   timeline?: AlertTimelineEvent[]; decisions?: AlertDecisionRecord[];
 }
-export interface AlertList { available: boolean; alerts: ThermalAlert[]; channels: string[]; decisions_enabled: boolean }
+export interface AlertList { available: boolean; alerts: ThermalAlert[]; channels: string[]; decisions_enabled: boolean; demo_readonly?: boolean }
+
+// ---- Phase 8: dashboard ---------------------------------------------------------------------------------------------
+export interface DashboardModelCard {
+  model_version: string | null;
+  macro_f1: { model: number | null; rules: number | null; blind: number | null };
+  macro_f1_ci: { model: [number, number] | null; rules: [number, number] | null; blind: [number, number] | null };
+  test_units: number | null;
+  incidents: { verified: number | null; with_detection: number | null; 'model_recall_of_detected_at_0.25_false_alarms_per_day': number | null; rules_recall_of_detected: number | null };
+  caveat: string;
+}
+export interface DashboardData {
+  backend: 'postgis' | 'snapshot';
+  generated_at: string;
+  totals: { sources: number; detections: number; newest_detection: string | null };
+  by_class: Record<string, number>;
+  top_states: { state: string; sources: number; industrial: number; flagged: number }[];
+  alerts: { today: number; today_by_severity: Record<string, number>; open: number; by_status: Record<string, number>;
+            last_7_days: { date: string; count: number }[]; note?: string };
+  class_mix: { at: string; by_class: Record<string, number> }[];
+  model: DashboardModelCard | null;
+}

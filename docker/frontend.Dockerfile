@@ -4,6 +4,9 @@ WORKDIR /app
 COPY industrial-gis/frontend/package.json industrial-gis/frontend/package-lock.json ./
 RUN npm ci
 COPY industrial-gis/frontend/ ./
+# optional own tile server for production traffic (the OSM volunteer servers are for light use)
+ARG VITE_TILE_URL=
+ENV VITE_TILE_URL=$VITE_TILE_URL
 RUN npm run build
 
 FROM nginx:1.27-alpine

@@ -39,6 +39,17 @@ Severity follows power (watch < 40 MW <= high < 100 MW <= critical) and goes up 
 | Compared with its own history | how often this place is hot, typical power, and today's power in standard deviations. **Industrial relation in one line**: a place that is *always* hot is routine; the same place at +4 sd is news |
 | Land cover | crop / forest / built-up around the source. Heat in farmland by day is crop burning, even if a landfill or kiln is mapped nearby (such sources are never alerted) |
 
+## The 3D Globe tab
+
+An interactive Earth: drag to rotate, scroll to zoom, right-drag or Ctrl-drag to tilt. Every classified source stands as a **column whose height grows with fire power**, coloured by class; click one for the usual detail panel. Controls on the left:
+
+* **Imagery**: NASA Blue Marble, daily VIIRS true-colour satellite for any day since 2012, NASA Black Marble night lights (lit industry), or OpenStreetMap streets.
+* **Fire data**: columns, glow points, *industrial only*, NASA's global fire-pixel layer for the chosen day, facilities, state borders.
+* **Shape**: globe or flat map, terrain relief with adjustable exaggeration, column-height scale, tilt, auto-rotate.
+* **Fly to**: India, world, Gujarat, the Jharkhand coal belt; picking an alert or source flies the camera to it.
+
+It needs internet for the imagery (NASA GIBS, AWS terrain tiles); in offline mode use the Map tab. It needs WebGL and says so if the device lacks it.
+
 ## The Dashboard tab
 
 Alerts today and open, number of sources and the industrial share, the class mix over time, the top states, and the **model card**: how well the model matches held-out data, with the caveat below.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Header } from '@/components/Header';
 import { StatisticsCards } from '@/components/StatisticsCards';
 import { ThermalCards, thermalCardValues } from '@/components/ThermalCards';
@@ -48,6 +48,9 @@ import type {
   RevisionEvent,
   StatisticsResponse,
 } from '@/types/industrial';
+
+// the 3D globe (MapLibre + WebGL) is loaded only when its tab is opened
+const GlobeView = lazy(() => import('@/components/GlobeView').then(m => ({ default: m.GlobeView })));
 
 const SITE_LIMIT = 2000;          // max markers requested for the current viewport
 const LIVE_DEBOUNCE_MS = 1500;    // batch bursts of change notifications into one refresh
@@ -126,7 +129,7 @@ export default function App() {
   const alerts = useAlerts();
   const refreshAlerts = alerts.refresh;
   const [showInbox, setShowInbox] = useState(false);
-  const [view, setView] = useState<'map' | 'dashboard' | 'admin'>('map');
+  const [view, setView] = useState<'map' | 'globe' | 'dashboard' | 'admin'>('map');
   const auth = useAuth();
   const narrow = useNarrow();
   const [layersOpen, setLayersOpen] = useState(false);
@@ -437,11 +440,11 @@ export default function App() {
             Thermo<span style={{ color: '#ea580c' }}>Trace</span>
           </h1>
           <nav role="tablist" aria-label="Views" style={{ display: 'flex', gap: 4 }}>
-            {(['map', 'dashboard', ...(auth.enforced && auth.can('admin') ? ['admin' as const] : [])] as const).map(v => (
+            {(['map', 'globe', 'dashboard', ...(auth.enforced && auth.can('admin') ? ['admin' as const] : [])] as const).map(v => (
               <button key={v} role="tab" aria-selected={view === v} data-testid={`tab-${v}`} onClick={() => setView(v)}
                 style={{ padding: '5px 14px', borderRadius: 99, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
                   background: view === v ? '#0f172a' : 'transparent', color: view === v ? '#fff' : '#475569' }}>
-                {v === 'map' ? 'Map' : v === 'dashboard' ? 'Dashboard' : 'Admin'}
+                {v === 'map' ? 'Map' : v === 'globe' ? '3D Globe' : v === 'dashboard' ? 'Dashboard' : 'Admin'}
               </button>
             ))}
           </nav>
@@ -554,6 +557,16 @@ export default function App() {
       {view === 'admin' && auth.can('admin') && (
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '10px 14px 14px' }}>
           <AdminPanel me={auth.user} localAccounts={auth.me?.auth_mode === 'local'} />
+        </div>
+      )}
+      {view === 'globe' && (
+        <div style={{ flex: 1, minHeight: 0, padding: '0 14px 14px' }}>
+          <div style={{ width: '100%', height: '100%', borderRadius: 20, overflow: 'hidden', boxShadow: '0 8px 40px rgba(15,23,42,0.18)' }}>
+            <Suspense fallback={<LoadingState message="Loading the 3D globe…" />}>
+              <GlobeView thermal={thermal.data} classes={thermal.classes} facilities={facilities} states={stateBoundaries}
+                selectedId={thermal.selectedId} onSelect={thermal.select} />
+            </Suspense>
+          </div>
         </div>
       )}
       {view === 'dashboard' && (

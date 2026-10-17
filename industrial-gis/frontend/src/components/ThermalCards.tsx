@@ -46,19 +46,19 @@ const CARDS: { key: keyof ThermalCardValues; label: string; icon: string; color:
 
 export function ThermalCards({ values }: { values: ThermalCardValues }) {
   return (
-    <div style={{ display: 'flex', gap: 10, alignItems: 'stretch', overflowX: 'auto', paddingBottom: 2 }} data-testid="thermal-cards">
+    <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', overflowX: 'auto', paddingBottom: 2 }} data-testid="thermal-cards">
       {CARDS.map(c => (
         <article key={c.key} title={c.hint} style={{
-          flex: '1 1 120px', minWidth: 110, padding: '10px 14px', borderRadius: 16, background: c.bg,
-          border: `1px solid ${c.border}`, display: 'flex', flexDirection: 'column', gap: 4,
+          flex: '1 1 110px', minWidth: 100, padding: '7px 12px', borderRadius: 12, background: c.bg,
+          border: `1px solid ${c.border}`, display: 'flex', flexDirection: 'column', gap: 2,
         }}>
-          <span style={{ fontSize: 16 }}>{c.icon}</span>
-          <p data-testid={`card-${c.key}`} style={{ fontSize: 22, fontWeight: 800, color: c.color, margin: 0, lineHeight: 1,
-            letterSpacing: '-0.02em', fontFamily: "'IBM Plex Sans', sans-serif" }}>
+          <p data-testid={`card-${c.key}`} style={{ fontSize: 20, fontWeight: 800, color: c.color, margin: 0, lineHeight: 1.1,
+            letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 14 }} aria-hidden>{c.icon}</span>
             {values[c.key] != null ? (values[c.key] as number).toLocaleString() : '—'}
           </p>
-          <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', color: c.color,
-            opacity: 0.75, margin: 0 }}>{c.label}</p>
+          <p style={{ fontSize: 10, fontWeight: 600, color: c.color, opacity: 0.8, margin: 0, whiteSpace: 'nowrap',
+            overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.label}</p>
         </article>
       ))}
     </div>

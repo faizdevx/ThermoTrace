@@ -18,6 +18,9 @@ import { useAlerts } from '@/hooks/useAlerts';
 import { useNarrow } from '@/hooks/useNarrow';
 import { useAuth } from '@/hooks/useAuth';
 import { AdminPanel } from '@/components/AdminPanel';
+import { FacilitySearch } from '@/components/FacilitySearch';
+import { boxAround } from '@/components/facilityLookup';
+import { HelpGuide, guideSeen } from '@/components/HelpGuide';
 import { useThermal } from '@/hooks/useThermal';
 import {
   ApiError,
@@ -126,6 +129,18 @@ export default function App() {
   const auth = useAuth();
   const narrow = useNarrow();
   const [layersOpen, setLayersOpen] = useState(false);
+  const [showHelp, setShowHelp] = useState(() => !guideSeen());
+  useEffect(() => {
+    // "?" opens the guide, "/" jumps to the facility search (not while typing in a field)
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+      if (e.key === '?') setShowHelp(true);
+      else if (e.key === '/') { e.preventDefault(); document.getElementById('facility-search')?.focus(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const refreshThermal = thermal.refresh;
   // a new FIRMS snapshot was published: refetch thermal data only (sites are unaffected)
   const handleThermalEvent = useCallback(() => {
@@ -410,90 +425,42 @@ export default function App() {
         </Banner>
       )}
 
-      <div style={{ flexShrink: 0, padding: '12px 14px 0' }}>
-        <Header
-          pilotControls={showSites}
-          searchDraft={searchDraft}
-          selectedState={selectedState}
-          selectedDistrict={selectedDistrict}
-          selectedIndustryType={selectedIndustryType}
-          selectedStatus={selectedStatus}
-          selectedConfidence={selectedConfidence}
-          options={options}
-          availableDistricts={options?.districts}
-          isLoading={isRefreshing}
-          onSearchDraftChange={handleSearchDraftChange}
-          onStateChange={handleStateChange}
-          onDistrictChange={handleDistrictChange}
-          onIndustryTypeChange={setSelectedIndustryType}
-          onStatusChange={setSelectedStatus}
-          onConfidenceChange={setSelectedConfidence}
-          onSearch={() => setActiveQuery(searchDraft.trim())}
-          onReset={handleReset}
-        />
-      </div>
-
-      <div style={{ flexShrink: 0, padding: '10px 14px 0', display: view === 'map' ? undefined : 'none' }}>
-        {showSites ? (
-          <>
-            <StatisticsCards statistics={statistics} onShowAnalytics={() => setShowAnalytics(true)} />
-            <p style={{ margin: '4px 4px 0', fontSize: 10, color: '#94a3b8' }}>
-              Cards and analytics count{' '}
-              <strong>{anyFilter ? 'all sites matching your filters' : 'the whole loaded dataset'}</strong>
-              {' '}of the OSM industrial-sites pilot (not just the map view).
-            </p>
-          </>
-        ) : (
-          <>
-            <ThermalCards values={{ ...thermalCardValues(thermal.stats, thermal.data, facilities), ...(alerts.available ? { alerts: openCount(alerts.alerts) } : {}) }} />
-            <p className="hidden-mobile" style={{ margin: '4px 4px 0', fontSize: 10, color: '#94a3b8' }}>
-              Thermal cards follow the thermal filters (class, window, power, alerts); facility cards count the whole
-              merged facility database. Tick <em>Industrial sites (OSM pilot)</em> to see the pilot's own cards.
-            </p>
-          </>
-        )}
-      </div>
-
-      {/* ── Status bar ──────────────────────────────────────────────────── */}
-      <div style={{ flexShrink: 0, padding: '6px 18px', display: 'flex', alignItems: 'center', gap: 10, minHeight: 32, flexWrap: 'wrap' }}>
-        {isRefreshing && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#0ea5e9', fontWeight: 500 }}>
-            <span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #bae6fd', borderTopColor: '#0ea5e9', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
-            Refreshing…
-          </span>
-        )}
-        {!isRefreshing && !error && sites && (
-          <span id="visible-count" className="hidden-mobile" style={{ fontSize: 12, color: '#64748b' }} aria-live="polite">
-            {!showSites && (datasetEmpty
-              // the pilot import is empty: say so without covering the thermal / facility map
-              ? <><strong style={{ color: '#b45309' }}>No data imported yet</strong> for the OSM industrial-sites pilot (thermal sources and facilities are unaffected; see the README bootstrap step). </>
-              : <>OSM industrial-sites pilot layer is hidden - tick <em>Industrial sites</em> under Layers to draw it. </>)}
-            <strong style={{ color: '#0f172a' }}>{visibleCount.toLocaleString()}</strong>
-            {truncated && <> of {viewTotal.toLocaleString()}</>} site{visibleCount !== 1 ? 's' : ''} in the map view
-            {activeQuery && <> matching <em style={{ color: '#0ea5e9' }}>"{activeQuery}"</em></>}
-            {truncated && <span style={{ color: '#b45309' }}> - showing the first {SITE_LIMIT.toLocaleString()}; zoom in or add filters to see the rest</span>}
-          </span>
-        )}
-        {error && (
-          <span role="alert" style={{ fontSize: 12, color: '#dc2626', fontWeight: 600 }}>
-            ⚠ {error.isServerUnavailable ? 'Database unavailable' : error.message}
-            <button onClick={handleRetry} style={{ marginLeft: 8, fontSize: 11, cursor: 'pointer' }}>Retry</button>
-          </span>
-        )}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          {showSites && auth.can('analyst') && <ExportMenu
-            filters={scopeFilters}
-            viewportBbox={viewport?.bbox ?? null}
-            totalMatching={statistics?.total_sites ?? null}
-            disabled={backendStatus === 'offline' || synthetic}
-          />}
+      {/* ── Top bar: brand, views, find, alerts, status, help, account ─────── */}
+      <div style={{ flexShrink: 0, padding: '8px 14px 0' }}>
+        <header style={{
+          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '8px 14px', borderRadius: 16,
+          background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(186,230,255,0.6)',
+          boxShadow: '0 2px 14px rgba(14,165,233,0.10)',
+        }}>
+          <h1 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.01em' }}>
+            Thermo<span style={{ color: '#ea580c' }}>Trace</span>
+          </h1>
+          <nav role="tablist" aria-label="Views" style={{ display: 'flex', gap: 4 }}>
+            {(['map', 'dashboard', ...(auth.enforced && auth.can('admin') ? ['admin' as const] : [])] as const).map(v => (
+              <button key={v} role="tab" aria-selected={view === v} data-testid={`tab-${v}`} onClick={() => setView(v)}
+                style={{ padding: '5px 14px', borderRadius: 99, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                  background: view === v ? '#0f172a' : 'transparent', color: view === v ? '#fff' : '#475569' }}>
+                {v === 'map' ? 'Map' : v === 'dashboard' ? 'Dashboard' : 'Admin'}
+              </button>
+            ))}
+          </nav>
+          <FacilitySearch features={facilities?.features} loaded={facilities !== null}
+            onPick={h => { setView('map'); setShowFacilities(true); requestFit(boxAround(h.lat, h.lon)); }} />
+          <span style={{ flex: 1 }} />
+          {alerts.available && (
+            <button data-testid="open-inbox" onClick={() => { setView('map'); setShowInbox(v => !v); }}
+              title="Abnormal heat at industrial sites that needs a look"
+              style={{ padding: '6px 14px', borderRadius: 99, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#fff',
+                background: openCount(alerts.alerts) ? '#dc2626' : '#0f172a' }}>
+              🚨 Alerts{openCount(alerts.alerts) ? ` (${openCount(alerts.alerts)} open)` : ''}
+            </button>
+          )}
           <span style={{
-            fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em',
-            padding: '2px 10px', borderRadius: 99,
+            fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', padding: '2px 10px', borderRadius: 99,
             background: dataMode === 'postgis' ? 'rgba(34,197,94,0.10)' : 'rgba(139,92,246,0.10)',
             color: dataMode === 'postgis' ? '#15803d' : '#6d28d9',
-          }}>
-            {dataMode === 'postgis' ? 'PostGIS · OpenStreetMap' : dataMode ? 'Synthetic demo' : '…'}
+          }} className="hidden-mobile">
+            {dataMode === 'postgis' ? 'PostGIS' : dataMode ? 'Synthetic demo' : '…'}
           </span>
           <LiveStatus
             status={syncStatus}
@@ -502,25 +469,87 @@ export default function App() {
             lastUiUpdate={lastUiUpdate}
             onRefresh={refreshSyncStatus}
           />
-        </div>
-      </div>
-
-      {/* ── Map ─────────────────────────────────────────────────────────── */}
-      <div role="tablist" aria-label="Views" style={{ flexShrink: 0, display: 'flex', gap: 6, padding: '8px 14px 0' }}>
-        {(['map', 'dashboard', ...(auth.enforced && auth.can('admin') ? ['admin' as const] : [])] as const).map(v => (
-          <button key={v} role="tab" aria-selected={view === v} data-testid={`tab-${v}`} onClick={() => setView(v)}
-            style={{ padding: '6px 16px', borderRadius: 99, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
-              background: view === v ? '#0f172a' : 'rgba(255,255,255,0.7)', color: view === v ? '#fff' : '#334155' }}>
-            {v === 'map' ? 'Map' : v === 'dashboard' ? 'Dashboard' : 'Admin'}
-          </button>
-        ))}
-        {auth.enforced && auth.user && (
-          <span data-testid="whoami" style={{ marginLeft: 'auto', alignSelf: 'center', fontSize: 12, color: '#475569', display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span className="hidden-mobile">{auth.user.display_name || auth.user.username} ({auth.user.role})</span>
-            <button onClick={() => auth.signOut()} style={{ padding: '4px 10px', borderRadius: 99, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: 12 }}>Sign out</button>
-          </span>
+          <button onClick={() => setShowHelp(true)} aria-label="Open quick guide" title="Quick guide (?)" data-testid="open-guide"
+            style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontWeight: 700, color: '#334155' }}>?</button>
+          {auth.enforced && auth.user && (
+            <span data-testid="whoami" style={{ fontSize: 12, color: '#475569', display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span className="hidden-mobile">{auth.user.display_name || auth.user.username} ({auth.user.role})</span>
+              <button onClick={() => auth.signOut()} style={{ padding: '4px 10px', borderRadius: 99, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: 12 }}>Sign out</button>
+            </span>
+          )}
+        </header>
+        {showSites && view === 'map' && (
+          <div style={{ marginTop: 8 }}>
+            <Header
+              pilotControls
+              searchDraft={searchDraft}
+              selectedState={selectedState}
+              selectedDistrict={selectedDistrict}
+              selectedIndustryType={selectedIndustryType}
+              selectedStatus={selectedStatus}
+              selectedConfidence={selectedConfidence}
+              options={options}
+              availableDistricts={options?.districts}
+              isLoading={isRefreshing}
+              onSearchDraftChange={handleSearchDraftChange}
+              onStateChange={handleStateChange}
+              onDistrictChange={handleDistrictChange}
+              onIndustryTypeChange={setSelectedIndustryType}
+              onStatusChange={setSelectedStatus}
+              onConfidenceChange={setSelectedConfidence}
+              onSearch={() => setActiveQuery(searchDraft.trim())}
+              onReset={handleReset}
+            />
+          </div>
         )}
       </div>
+
+      <div style={{ flexShrink: 0, padding: '8px 14px 0', display: view === 'map' ? undefined : 'none' }}>
+        {showSites ? (
+          <StatisticsCards statistics={statistics} onShowAnalytics={() => setShowAnalytics(true)} />
+        ) : (
+          <ThermalCards values={{ ...thermalCardValues(thermal.stats, thermal.data, facilities), ...(alerts.available ? { alerts: openCount(alerts.alerts) } : {}) }} />
+        )}
+      </div>
+
+      {/* ── Status line: only when there is something to say ───────────── */}
+      {view === 'map' && (isRefreshing || error || showSites || datasetEmpty) && (
+        <div style={{ flexShrink: 0, padding: '4px 18px 0', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {isRefreshing && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#0ea5e9', fontWeight: 500 }}>
+              <span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #bae6fd', borderTopColor: '#0ea5e9', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
+              Refreshing…
+            </span>
+          )}
+          {!isRefreshing && !error && sites && showSites && (
+            <span id="visible-count" style={{ fontSize: 12, color: '#64748b' }} aria-live="polite">
+              <strong style={{ color: '#0f172a' }}>{visibleCount.toLocaleString()}</strong>
+              {truncated && <> of {viewTotal.toLocaleString()}</>} site{visibleCount !== 1 ? 's' : ''} in the map view
+              {activeQuery && <> matching <em style={{ color: '#0ea5e9' }}>"{activeQuery}"</em></>}
+              {truncated && <span style={{ color: '#b45309' }}> - showing the first {SITE_LIMIT.toLocaleString()}; zoom in or add filters to see the rest</span>}
+            </span>
+          )}
+          {!isRefreshing && !error && sites && datasetEmpty && !showSites && (
+            <span style={{ fontSize: 12, color: '#b45309' }}><strong>No data imported yet</strong> for the OSM pilot (thermal sources and facilities are unaffected).</span>
+          )}
+          {error && (
+            <span role="alert" style={{ fontSize: 12, color: '#dc2626', fontWeight: 600 }}>
+              ⚠ {error.isServerUnavailable ? 'Database unavailable' : error.message}
+              <button onClick={handleRetry} style={{ marginLeft: 8, fontSize: 11, cursor: 'pointer' }}>Retry</button>
+            </span>
+          )}
+          <div style={{ marginLeft: 'auto' }}>
+            {showSites && auth.can('analyst') && <ExportMenu
+              filters={scopeFilters}
+              viewportBbox={viewport?.bbox ?? null}
+              totalMatching={statistics?.total_sites ?? null}
+              disabled={backendStatus === 'offline' || synthetic}
+            />}
+          </div>
+        </div>
+      )}
+
+      <div style={{ height: 8, flexShrink: 0 }} />
       {view === 'admin' && auth.can('admin') && (
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '10px 14px 14px' }}>
           <AdminPanel me={auth.user} localAccounts={auth.me?.auth_mode === 'local'} />
@@ -623,16 +652,6 @@ export default function App() {
             </p>
           </div>}
 
-          {alerts.available && (
-            <button
-              data-testid="open-inbox" onClick={() => setShowInbox(v => !v)}
-              style={{ position: 'absolute', ...(narrow ? { bottom: 34, left: 12 } : { top: 12, right: 12 }), zIndex: 600, padding: '7px 12px', borderRadius: 99, border: 'none', cursor: 'pointer',
-                background: openCount(alerts.alerts) ? '#dc2626' : '#0f172a', color: '#fff', fontWeight: 700, fontSize: 12 }}
-            >
-              Alerts{openCount(alerts.alerts) ? ` (${openCount(alerts.alerts)} open)` : ''}
-            </button>
-          )}
-
           {liveToast && (
             <div role="status" style={{
               position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 600,
@@ -676,6 +695,7 @@ export default function App() {
       />
       <AlertInbox alerts={alerts} open={showInbox} onClose={() => setShowInbox(false)}
         onLocate={a => { thermal.select(a.source_id); setShowInbox(false); }} />
+      <HelpGuide open={showHelp} onClose={() => setShowHelp(false)} />
       <AnalyticsPanel statistics={statistics} isOpen={showAnalytics} onClose={() => setShowAnalytics(false)} />
 
       {(selectedSite || showAnalytics) && (

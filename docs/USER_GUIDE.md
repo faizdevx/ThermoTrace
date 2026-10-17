@@ -10,6 +10,8 @@ Open <http://localhost:8080> (`docker compose up -d`). With sign-in enabled you 
 
 ## 5-minute walkthrough
 
+**Quick start.** The first time you open the app a 4-step guide explains the colours and the alert button; press **?** (or the round ? button) to see it again. Press **/** to jump to the search box, type a plant, mine or refinery name and pick it: the map flies there and shows the facility layer. The top bar holds everything: Map / Dashboard tabs, search, the red **Alerts** button, live status and sign-out.
+
 **1. National view (Map tab).** Coloured dots are *industrial* sources: red = persistent industrial heat, orange = possible industrial fire / abnormal event, purple = persistent heat with no mapped facility. The faint squares are crop and forest fires, shown as a density grid so they do not bury the industrial ones. Zoom in (zoom 8 and up) and every source becomes a dot. Facilities are off by default; tick *Facilities* under Layers to see where plants are.
 
 **2. Look at the alerts.** The red **Alerts (n open)** button opens the inbox. An alert means one of two things, and says which:

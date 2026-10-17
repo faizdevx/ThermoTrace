@@ -115,6 +115,7 @@ describe('App live updates (no page reload)', () => {
 
   it('adds a newly committed site to the map, counters and statistics without reloading', async () => {
     await boot();
+    await act(async () => { fireEvent.click(document.getElementById('toggle-sites')!); });   // the site count shows with the pilot layer
     api.state.sites = [...api.state.sites, site('3', { name: 'Gamma Foundry' })];
     api.state.revision = 2;
     act(() => FakeEventSource.last.emit('revision', {

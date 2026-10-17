@@ -230,3 +230,4 @@ logs/
 !**/.env.example
 backups/
 demo-bundle/
+submission/*.zip

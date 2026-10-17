@@ -31,7 +31,7 @@ function Chip({ text, bg, fg, border }: { text: string; bg: string; fg: string; 
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', padding: '3px 10px', borderRadius: 99,
-      fontSize: 11, fontWeight: 600, background: bg, color: fg,
+      fontSize: 12, fontWeight: 600, background: bg, color: fg,
       border: border ? `1px solid ${border}` : undefined, letterSpacing: '0.04em',
     }}>
       {text}
@@ -42,7 +42,7 @@ function Chip({ text, bg, fg, border }: { text: string; bg: string; fg: string; 
 function DataRow({ label: title, children }: { label: string; children: ReactNode }) {
   return (
     <div style={{ padding: '9px 0', borderBottom: '1px solid #f1f5f9' }}>
-      <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.09em', color: '#94a3b8', margin: '0 0 3px' }}>
+      <p style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.09em', color: '#64748b', margin: '0 0 3px' }}>
         {title}
       </p>
       <div style={{ fontSize: 13, color: '#1e293b', fontWeight: 500, lineHeight: 1.5, wordBreak: 'break-word' }}>
@@ -55,7 +55,7 @@ function DataRow({ label: title, children }: { label: string; children: ReactNod
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
     <p style={{
-      fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#64748b',
+      fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#64748b',
       margin: '16px 0 0', padding: '8px 0 6px', borderTop: '1px solid #f1f5f9',
     }}>
       {children}
@@ -96,14 +96,14 @@ export function IndustryDetails({ site, removed, onClose }: Props) {
       }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
           <div style={{ flex: 1, overflow: 'hidden' }}>
-            <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#7dd3fc', margin: '0 0 4px' }}>
+            <p style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#7dd3fc', margin: '0 0 4px' }}>
               {p ? (FEATURE_CLASS_HELP[p.feature_class ?? '']?.split(' (')[0] ?? 'Industrial site') : 'Industrial site'}
             </p>
             <h2 style={{ fontSize: 15, fontWeight: 700, color: '#f8fafc', margin: 0, lineHeight: 1.35, wordBreak: 'break-word' }}>
               {p ? (p.name || `Unnamed ${p.industry_type || 'site'}`) : ''}
             </h2>
             {p && (
-              <p style={{ fontSize: 12, color: '#94a3b8', margin: '4px 0 0' }}>
+              <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 0' }}>
                 {[p.district, p.state].filter(Boolean).join(' · ') || 'Administrative area not assigned'}
               </p>
             )}
@@ -141,7 +141,7 @@ export function IndustryDetails({ site, removed, onClose }: Props) {
           </DataRow>
           <DataRow label="Evidence level (calculated)">
             {show(p.evidence_level)} (score {show(p.evidence_score, '0')}/4)
-            <div style={{ fontSize: 11, color: '#64748b', fontWeight: 400, marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: '#64748b', fontWeight: 400, marginTop: 2 }}>
               Counts how many of: a name, an operator/owner, a specific industrial type, and an identifier/website
               are tagged. This is tag completeness, <strong>not</strong> official verification or proof the site is operating.
             </div>
@@ -175,7 +175,7 @@ export function IndustryDetails({ site, removed, onClose }: Props) {
             None. No government source is integrated; this record comes from OpenStreetMap only.
           </DataRow>
           <DataRow label="Site ID (stable)">
-            <code style={{ fontSize: 11 }}>{p.site_id}</code>
+            <code style={{ fontSize: 12 }}>{p.site_id}</code>
           </DataRow>
           <DataRow label="Last updated in ThermoTrace">
             {p.updated_at ? new Date(p.updated_at).toLocaleString() : NA}
@@ -185,7 +185,7 @@ export function IndustryDetails({ site, removed, onClose }: Props) {
           {tagEntries.length > 0 && (
             <>
               <SectionLabel>Source tags</SectionLabel>
-              <div style={{ fontSize: 11, color: '#334155', lineHeight: 1.6 }}>
+              <div style={{ fontSize: 12, color: '#334155', lineHeight: 1.6 }}>
                 {tagEntries.map(([k, v]) => (
                   <div key={k} style={{ display: 'flex', gap: 8, borderBottom: '1px dashed #f1f5f9' }}>
                     <code style={{ color: '#64748b', flex: '0 0 40%', wordBreak: 'break-all' }}>{k}</code>

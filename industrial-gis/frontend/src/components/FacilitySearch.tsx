@@ -1,3 +1,4 @@
+import { Icon } from '@/components/Icon';
 import { useMemo, useRef, useState } from 'react';
 import type { FacilityFeature } from '@/types/industrial';
 import { prettyKind, searchFacilities, type FacilityHit } from '@/components/facilityLookup';
@@ -25,6 +26,7 @@ export function FacilitySearch({ features, loaded, onPick }: Props) {
   return (
     <div ref={box} style={{ position: 'relative', flex: '1 1 220px', maxWidth: 420, minWidth: 140 }}
       onBlur={e => { if (!box.current?.contains(e.relatedTarget as Node | null)) setOpen(false); }}>
+      <span style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none', display: 'flex' }}><Icon name="search" size={15} /></span>
       <input
         id="facility-search" type="search" role="combobox" aria-expanded={open && hits.length > 0} aria-controls="facility-hits"
         aria-label="Find a facility"
@@ -38,7 +40,7 @@ export function FacilitySearch({ features, loaded, onPick }: Props) {
           else if (e.key === 'Enter' && hits[active]) { e.preventDefault(); pick(hits[active]); }
           else if (e.key === 'Escape') setOpen(false);
         }}
-        style={{ width: '100%', boxSizing: 'border-box', padding: '7px 12px', borderRadius: 99, border: '1px solid #cbd5e1',
+        style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px 8px 34px', borderRadius: 99, border: '1px solid #cbd5e1',
           background: '#f8fafc', fontSize: 13, outline: 'none', fontFamily: 'inherit' }}
       />
       {open && text.trim().length >= 2 && (
@@ -51,7 +53,7 @@ export function FacilitySearch({ features, loaded, onPick }: Props) {
               onMouseDown={e => { e.preventDefault(); pick(h); }} onMouseEnter={() => setActive(i)}
               style={{ padding: '7px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 13, background: i === active ? '#e0f2fe' : 'transparent' }}>
               <div style={{ fontWeight: 600, color: '#0f172a' }}>{h.name}</div>
-              <div style={{ fontSize: 11, color: '#64748b' }}>{prettyKind(h.kind)}</div>
+              <div style={{ fontSize: 12, color: '#64748b' }}>{prettyKind(h.kind)}</div>
             </li>
           ))}
         </ul>

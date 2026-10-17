@@ -80,8 +80,8 @@ export function Header({
         {/* Brand */}
         <div style={{ flexShrink: 0 }}>
           <p style={{
-            fontSize: 9, fontWeight: 700, textTransform: 'uppercase',
-            letterSpacing: '0.22em', color: '#0ea5e9', margin: '0 0 2px',
+            fontSize: 12, fontWeight: 700, textTransform: 'uppercase',
+            letterSpacing: '0.22em', color: '#0369a1', margin: '0 0 2px',
           }}>
             India Industrial Intelligence
           </p>
@@ -107,7 +107,7 @@ export function Header({
           <div style={{ flex: 1, position: 'relative' }}>
             <span style={{
               position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
-              fontSize: 14, color: '#94a3b8', pointerEvents: 'none', lineHeight: 1,
+              fontSize: 14, color: '#64748b', pointerEvents: 'none', lineHeight: 1,
             }}>🔍</span>
             <input
               id="site-search-input"
@@ -176,7 +176,7 @@ export function Header({
 
       {/* ── Filter row ────────────────────────────────────────────────────── */}
       {pilotControls && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', flexShrink: 0 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.07em', flexShrink: 0 }}>
           Filter:
         </span>
 
@@ -269,7 +269,7 @@ export function Header({
                   display: 'inline-flex', alignItems: 'center', gap: 4,
                   padding: '3px 8px 3px 10px', borderRadius: 99,
                   background: '#eff6ff', border: '1px solid #bfdbfe',
-                  fontSize: 11, fontWeight: 600, color: '#1d4ed8',
+                  fontSize: 12, fontWeight: 600, color: '#1d4ed8',
                   cursor: 'default',
                 }}
               >
@@ -279,7 +279,7 @@ export function Header({
                   style={{
                     width: 14, height: 14, borderRadius: '50%', border: 'none',
                     background: '#bfdbfe', color: '#1d4ed8',
-                    fontSize: 10, cursor: 'pointer', padding: 0, lineHeight: 1,
+                    fontSize: 12, cursor: 'pointer', padding: 0, lineHeight: 1,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}
                 >×</button>

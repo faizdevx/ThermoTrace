@@ -1,3 +1,4 @@
+import { Icon } from '@/components/Icon';
 import { useState } from 'react';
 import { thermalExportUrl } from '@/services/api';
 import { WINDOWS, type useThermal } from '@/hooks/useThermal';
@@ -30,9 +31,9 @@ export function ThermalControls({ t }: { t: ThermalState }) {
         style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', border: 'none',
                  background: 'transparent', cursor: 'pointer', textAlign: 'left', fontWeight: 700, color: '#0f172a' }}
       >
-        <span style={{ fontSize: 15 }}>🔥</span>
+        <span style={{ color: '#ea580c', display: 'inline-flex' }}><Icon name="flame" size={18} /></span>
         <span style={{ flex: 1 }}>Thermal sources (NASA FIRMS)</span>
-        {alerts > 0 && <span style={{ background: '#dc2626', color: '#fff', borderRadius: 99, padding: '1px 8px', fontSize: 10 }}>{alerts} alert{alerts > 1 ? 's' : ''}</span>}
+        {alerts > 0 && <span style={{ background: '#dc2626', color: '#fff', borderRadius: 99, padding: '1px 8px', fontSize: 12 }}>{alerts} alert{alerts > 1 ? 's' : ''}</span>}
         <span>{open ? '▾' : '▸'}</span>
       </button>
       {open && (
@@ -78,7 +79,7 @@ export function ThermalControls({ t }: { t: ThermalState }) {
                   Alerts only
                 </label>
               </div>
-              {!auth.can('analyst') ? <p style={{ margin: '8px 0 0', color: '#94a3b8' }}>Downloads need the analyst role.</p> : null}
+              {!auth.can('analyst') ? <p style={{ margin: '8px 0 0', color: '#64748b' }}>Downloads need the analyst role.</p> : null}
               <div style={{ marginTop: 8, display: auth.can('analyst') ? 'flex' : 'none', gap: 6, alignItems: 'center' }}>
                 <span style={{ color: '#64748b' }}>Export:</span>
                 {(['csv', 'geojson'] as const).map(f => (
@@ -88,7 +89,7 @@ export function ThermalControls({ t }: { t: ThermalState }) {
                   </a>
                 ))}
               </div>
-              <p style={{ margin: '8px 0 0', fontSize: 10, color: '#94a3b8', lineHeight: 1.4 }}>
+              <p style={{ margin: '8px 0 0', fontSize: 12, color: '#64748b', lineHeight: 1.4 }}>
                 Classes are heuristic evidence scores, not confirmed causes. Data: NASA FIRMS VIIRS (~3 h latency), OpenStreetMap, ESA WorldCover.
               </p>
             </>

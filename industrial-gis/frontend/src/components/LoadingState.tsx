@@ -46,7 +46,7 @@ export function LoadingState({ message = 'Loading industrial sites…' }: Loadin
         <p style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', margin: '0 0 4px' }}>
           {message}
         </p>
-        <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>
+        <p style={{ fontSize: 12, color: '#64748b', margin: 0 }}>
           Querying GIS backend…
         </p>
       </div>

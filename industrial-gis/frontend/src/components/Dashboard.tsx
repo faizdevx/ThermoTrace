@@ -13,7 +13,7 @@ const LABELS: Record<string, string> = {
 };
 
 const card: React.CSSProperties = { background: 'rgba(255,255,255,0.92)', borderRadius: 14, padding: '14px 16px', boxShadow: '0 1px 4px rgba(15,23,42,0.08)' };
-const h: React.CSSProperties = { margin: '0 0 8px', fontSize: 11, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: '#64748b' };
+const h: React.CSSProperties = { margin: '0 0 8px', fontSize: 12, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: '#64748b' };
 
 function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: string }) {
   return (
@@ -46,7 +46,7 @@ function ClassMix({ data }: { data: DashboardData }) {
         <text x={L} y={H - 6} fontSize="10" fill="#64748b">{new Date(t0).toLocaleDateString()}</text>
         <text x={W - 6} y={H - 6} fontSize="10" fill="#64748b" textAnchor="end">{new Date(t1).toLocaleDateString()}</text>
       </svg>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', fontSize: 11, color: '#475569' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', fontSize: 12, color: '#475569' }}>
         {s.classes.map(c => <span key={c}><span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: 2, background: COLORS[c] ?? '#64748b', marginRight: 4 }} />{LABELS[c] ?? c}</span>)}
       </div>
     </div>
@@ -85,7 +85,7 @@ function ModelCard({ m }: { m: NonNullable<DashboardData['model']> }) {
           <span style={{ flex: 1, background: '#f1f5f9', borderRadius: 4, height: 14, position: 'relative' }}>
             <span style={{ position: 'absolute', inset: 0, width: `${(v ?? 0) * 100}%`, background: color, borderRadius: 4 }} />
           </span>
-          <span style={{ width: 120, textAlign: 'right', fontWeight: 700 }}>{v?.toFixed(3) ?? 'n/a'}{ci ? <span style={{ fontWeight: 400, color: '#94a3b8' }}> ({ci[0].toFixed(2)}-{ci[1].toFixed(2)})</span> : null}</span>
+          <span style={{ width: 120, textAlign: 'right', fontWeight: 700 }}>{v?.toFixed(3) ?? 'n/a'}{ci ? <span style={{ fontWeight: 400, color: '#64748b' }}> ({ci[0].toFixed(2)}-{ci[1].toFixed(2)})</span> : null}</span>
         </div>
       ))}
       <p style={{ margin: '8px 0 0', fontSize: 12, color: '#475569', lineHeight: 1.45 }}>{modelStory(m)}</p>
@@ -129,7 +129,7 @@ export function Dashboard({ onOpenInbox }: { onOpenInbox?: () => void }) {
         <p style={h}>Model</p>
         {data.model ? <ModelCard m={data.model} /> : <p style={{ fontSize: 13, color: '#64748b' }}>No trained model registered.</p>}
       </div>
-      {data.alerts.note && <p style={{ fontSize: 11, color: '#94a3b8' }}>{data.alerts.note}</p>}
+      {data.alerts.note && <p style={{ fontSize: 12, color: '#64748b' }}>{data.alerts.note}</p>}
     </div>
   );
 }

@@ -95,3 +95,36 @@ body {
 @media (max-width: 640px) {
   .hidden-mobile { display: none !important; }
 }
+
+/* ── Design tokens + accessibility baseline ───────────────────────────── */
+:root {
+  --tt-ink: #0f172a;
+  --tt-muted: #64748b;          /* 4.8:1 on white: the lightest text colour allowed */
+  --tt-accent: #0369a1;
+  --tt-danger: #dc2626;
+  --tt-focus: #0284c7;
+}
+
+/* keyboard focus is always visible */
+:focus-visible {
+  outline: 2px solid var(--tt-focus);
+  outline-offset: 2px;
+}
+.leaflet-container:focus-visible { outline-offset: -2px; }
+
+button, [role='tab'], select, summary {
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+button:not(:disabled):active { transform: translateY(1px); }
+button:disabled { cursor: not-allowed; opacity: 0.55; }
+
+/* touch screens: 44 px targets */
+@media (pointer: coarse) {
+  button, [role='tab'], select, input[type='search'], input[type='text'], input[type='password'] { min-height: 44px; }
+  input[type='checkbox'], input[type='radio'] { width: 20px; height: 20px; }
+  label { min-height: 32px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}

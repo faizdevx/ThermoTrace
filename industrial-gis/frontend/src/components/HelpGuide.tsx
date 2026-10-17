@@ -45,7 +45,7 @@ export function HelpGuide({ open, onClose }: { open: boolean; onClose: () => voi
       onClick={done}>
       <div onClick={e => e.stopPropagation()}
         style={{ background: '#fff', borderRadius: 18, padding: '22px 24px', maxWidth: 440, width: '100%', boxShadow: '0 20px 60px rgba(15,23,42,0.35)' }}>
-        <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: '#0ea5e9', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+        <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#0369a1', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
           Quick guide {i + 1} / {STEPS.length}
         </p>
         <h2 style={{ margin: '4px 0 8px', fontSize: 19, color: '#0f172a' }}>{STEPS[i].title}</h2>

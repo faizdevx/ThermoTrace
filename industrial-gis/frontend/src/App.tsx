@@ -18,6 +18,7 @@ import { useAlerts } from '@/hooks/useAlerts';
 import { useNarrow } from '@/hooks/useNarrow';
 import { useAuth } from '@/hooks/useAuth';
 import { AdminPanel } from '@/components/AdminPanel';
+import { Icon } from '@/components/Icon';
 import { FacilitySearch } from '@/components/FacilitySearch';
 import { boxAround } from '@/components/facilityLookup';
 import { HelpGuide, guideSeen } from '@/components/HelpGuide';
@@ -450,13 +451,13 @@ export default function App() {
           {alerts.available && (
             <button data-testid="open-inbox" onClick={() => { setView('map'); setShowInbox(v => !v); }}
               title="Abnormal heat at industrial sites that needs a look"
-              style={{ padding: '6px 14px', borderRadius: 99, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#fff',
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 99, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#fff',
                 background: openCount(alerts.alerts) ? '#dc2626' : '#0f172a' }}>
-              🚨 Alerts{openCount(alerts.alerts) ? ` (${openCount(alerts.alerts)} open)` : ''}
+              <Icon name="siren" /> Alerts{openCount(alerts.alerts) ? ` (${openCount(alerts.alerts)} open)` : ''}
             </button>
           )}
           <span style={{
-            fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', padding: '2px 10px', borderRadius: 99,
+            fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', padding: '2px 10px', borderRadius: 99,
             background: dataMode === 'postgis' ? 'rgba(34,197,94,0.10)' : 'rgba(139,92,246,0.10)',
             color: dataMode === 'postgis' ? '#15803d' : '#6d28d9',
           }} className="hidden-mobile">
@@ -516,7 +517,7 @@ export default function App() {
       {view === 'map' && (isRefreshing || error || showSites || datasetEmpty) && (
         <div style={{ flexShrink: 0, padding: '4px 18px 0', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           {isRefreshing && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#0ea5e9', fontWeight: 500 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#0369a1', fontWeight: 500 }}>
               <span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #bae6fd', borderTopColor: '#0ea5e9', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} />
               Refreshing…
             </span>
@@ -525,7 +526,7 @@ export default function App() {
             <span id="visible-count" style={{ fontSize: 12, color: '#64748b' }} aria-live="polite">
               <strong style={{ color: '#0f172a' }}>{visibleCount.toLocaleString()}</strong>
               {truncated && <> of {viewTotal.toLocaleString()}</>} site{visibleCount !== 1 ? 's' : ''} in the map view
-              {activeQuery && <> matching <em style={{ color: '#0ea5e9' }}>"{activeQuery}"</em></>}
+              {activeQuery && <> matching <em style={{ color: '#0369a1' }}>"{activeQuery}"</em></>}
               {truncated && <span style={{ color: '#b45309' }}> - showing the first {SITE_LIMIT.toLocaleString()}; zoom in or add filters to see the rest</span>}
             </span>
           )}
@@ -534,8 +535,8 @@ export default function App() {
           )}
           {error && (
             <span role="alert" style={{ fontSize: 12, color: '#dc2626', fontWeight: 600 }}>
-              ⚠ {error.isServerUnavailable ? 'Database unavailable' : error.message}
-              <button onClick={handleRetry} style={{ marginLeft: 8, fontSize: 11, cursor: 'pointer' }}>Retry</button>
+              <Icon name="warning" size={14} /> {error.isServerUnavailable ? 'Database unavailable' : error.message}
+              <button onClick={handleRetry} style={{ marginLeft: 8, fontSize: 12, cursor: 'pointer' }}>Retry</button>
             </span>
           )}
           <div style={{ marginLeft: 'auto' }}>
@@ -601,10 +602,10 @@ export default function App() {
           {/* Layer toggles */}
           <div style={{
             position: 'absolute', ...(narrow ? { bottom: 70, right: 12 } : { top: 12, right: 12 }), zIndex: 500, background: 'rgba(255,255,255,0.94)',
-            borderRadius: 12, padding: '8px 12px', fontSize: 11, boxShadow: '0 2px 12px rgba(15,23,42,0.12)',
+            borderRadius: 12, padding: '8px 12px', fontSize: 12, boxShadow: '0 2px 12px rgba(15,23,42,0.12)',
           }}>
             <p onClick={narrow ? () => setLayersOpen(o => !o) : undefined} role={narrow ? 'button' : undefined}
-              style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', margin: narrow && !layersOpen ? 0 : '0 0 4px', cursor: narrow ? 'pointer' : undefined }}>
+              style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#64748b', margin: narrow && !layersOpen ? 0 : '0 0 4px', cursor: narrow ? 'pointer' : undefined }}>
               Layers{narrow ? (layersOpen ? ' ▾' : ' ▸') : ''}
             </p>
             <div style={{ display: narrow && !layersOpen ? 'none' : undefined }}>
@@ -613,7 +614,7 @@ export default function App() {
               <input id="toggle-facilities" type="checkbox" checked={showFacilities} onChange={e => setShowFacilities(e.target.checked)} /> Facilities ({facilities?.meta.total ?? 0})
             </label>
             {showFacilities && facilities?.meta.sources.length ? (
-              <p style={{ fontSize: 9, color: '#64748b', margin: '2px 0 4px', maxWidth: 200, lineHeight: 1.35 }}>
+              <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 4px', maxWidth: 200, lineHeight: 1.35 }}>
                 {facilities.meta.sources.map(s => s.attribution).join('; ')}
               </p>
             ) : null}
@@ -621,7 +622,7 @@ export default function App() {
               title="OpenStreetMap industrial sites (North-East pilot extract, not national coverage)">
               <input id="toggle-sites" type="checkbox" checked={showSites} onChange={e => setShowSites(e.target.checked)} /> Industrial sites (OSM pilot)
             </label>
-            <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', margin: '6px 0 4px' }}>Boundaries</p>
+            <p style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#64748b', margin: '6px 0 4px' }}>Boundaries</p>
             <label style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}>
               <input id="toggle-states" type="checkbox" checked={showStates} onChange={e => setShowStates(e.target.checked)} /> States
             </label>
@@ -635,10 +636,10 @@ export default function App() {
           {/* Legend (site markers only) */}
           {showSites && <div style={{
             position: 'absolute', bottom: 16, left: 16, zIndex: 500, background: 'rgba(255,255,255,0.93)',
-            backdropFilter: 'blur(10px)', borderRadius: 12, padding: '8px 12px', fontSize: 11,
+            backdropFilter: 'blur(10px)', borderRadius: 12, padding: '8px 12px', fontSize: 12,
             boxShadow: '0 2px 12px rgba(15,23,42,0.12)', maxWidth: 190,
           }}>
-            <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', margin: '0 0 6px' }}>
+            <p style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#64748b', margin: '0 0 6px' }}>
               Evidence (tag completeness)
             </p>
             {(['high', 'medium', 'low'] as const).map(level => (
@@ -647,7 +648,7 @@ export default function App() {
                 <span style={{ color: '#374151', fontWeight: 500, textTransform: 'capitalize' }}>{level}</span>
               </div>
             ))}
-            <p style={{ fontSize: 9, color: '#94a3b8', margin: '4px 0 0', lineHeight: 1.35 }}>
+            <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 0', lineHeight: 1.35 }}>
               Calculated from OSM tags. Not government verification.
             </p>
           </div>}
@@ -667,7 +668,7 @@ export default function App() {
               textAlign: 'center', background: 'rgba(255,255,255,0.95)', borderRadius: 16, padding: '24px 32px',
               boxShadow: '0 4px 24px rgba(15,23,42,0.12)', border: '1px solid #e2e8f0', maxWidth: 320,
             }}>
-              <span style={{ fontSize: 36 }}>{datasetEmpty ? '📥' : '🔍'}</span>
+              <span style={{ color: '#64748b' }}><Icon name={datasetEmpty ? 'inbox' : 'search'} size={36} /></span>
               <p style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', margin: '8px 0 4px' }}>
                 {datasetEmpty ? 'No data imported yet' : 'No sites in this view'}
               </p>
@@ -730,7 +731,7 @@ function Banner({ tone, children, onRetry }: { tone: 'amber' | 'red' | 'violet';
       {onRetry && (
         <button onClick={onRetry} style={{
           padding: '3px 12px', borderRadius: 8, border: `1px solid ${palette.border}`, background: '#fff',
-          color: palette.fg, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+          color: palette.fg, fontSize: 12, fontWeight: 600, cursor: 'pointer',
         }}>
           Retry
         </button>

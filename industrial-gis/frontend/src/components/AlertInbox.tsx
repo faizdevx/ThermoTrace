@@ -66,8 +66,8 @@ function Decide({ alert, enabled, demo, onDone }: { alert: ThermalAlert; enabled
         <button disabled={disabled} onClick={() => send('rejected')} style={btn('#475569', disabled)}>Reject</button>
         <button disabled={disabled} onClick={() => send('unsure')} style={btn('#7c3aed', disabled)}>Unsure</button>
       </div>
-      {hint && <p data-testid="decide-hint" style={{ fontSize: 11, color: '#92400e', margin: '6px 0 0' }}>{hint}</p>}
-      {msg && <p role="status" style={{ fontSize: 11, margin: '6px 0 0', color: msg.ok ? '#166534' : '#b91c1c' }}>{msg.text}</p>}
+      {hint && <p data-testid="decide-hint" style={{ fontSize: 12, color: '#92400e', margin: '6px 0 0' }}>{hint}</p>}
+      {msg && <p role="status" style={{ fontSize: 12, margin: '6px 0 0', color: msg.ok ? '#166534' : '#b91c1c' }}>{msg.text}</p>}
     </div>
   );
 }
@@ -78,7 +78,7 @@ function Detail({ a, enabled, demo, onLocate, onDone }: { a: ThermalAlert; enabl
   return (
     <div data-testid="alert-detail">
       <p style={{ margin: '0 0 4px', fontSize: 13, color: '#334155' }}>{a.summary}</p>
-      <p style={{ margin: '0 0 6px', fontSize: 11, color: '#64748b' }}>Delivery: {row.channels}</p>
+      <p style={{ margin: '0 0 6px', fontSize: 12, color: '#64748b' }}>Delivery: {row.channels}</p>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <button onClick={() => onLocate(a)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', fontSize: 12, cursor: 'pointer' }}>
           Show on map + satellite imagery
@@ -91,12 +91,12 @@ function Detail({ a, enabled, demo, onLocate, onDone }: { a: ThermalAlert; enabl
       <ol data-testid="alert-timeline" style={{ listStyle: 'none', padding: 0, margin: '10px 0 0', borderLeft: '2px solid #e2e8f0' }}>
         {(a.timeline ?? []).map((e, i) => (
           <li key={i} style={{ padding: '3px 0 3px 10px', fontSize: 12 }}>
-            <span style={{ color: '#94a3b8', fontSize: 10, display: 'block' }}>{new Date(e.at).toLocaleString()}</span>
+            <span style={{ color: '#64748b', fontSize: 12, display: 'block' }}>{new Date(e.at).toLocaleString()}</span>
             <span style={{ fontWeight: e.kind === 'decision' || e.kind === 'peak' ? 700 : 500 }}>{e.text}</span>
           </li>
         ))}
       </ol>
-      {a.is_test ? <p style={{ fontSize: 11, color: '#64748b' }}>Test alert: decisions on it are still written to labels (flagged is_test).</p> : null}
+      {a.is_test ? <p style={{ fontSize: 12, color: '#64748b' }}>Test alert: decisions on it are still written to labels (flagged is_test).</p> : null}
       <Decide key={a.alert_id} alert={a} enabled={enabled} demo={demo} onDone={onDone} />
     </div>
   );
@@ -116,7 +116,7 @@ export function AlertInbox({ alerts, open, onClose, onLocate }: {
         <strong style={{ flex: 1, fontSize: 15 }}>Alert inbox</strong>
         <button aria-label="Close inbox" onClick={onClose} style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>×</button>
       </div>
-      <div style={{ padding: '6px 14px', fontSize: 11, color: '#64748b' }}>
+      <div style={{ padding: '6px 14px', fontSize: 12, color: '#64748b' }}>
         {alerts.available
           ? `Delivery channels: ${alerts.channels.length ? alerts.channels.join(', ') : 'none configured'}`
           : 'Alerts need the PostGIS stack (not available in this mode).'}
@@ -135,11 +135,11 @@ export function AlertInbox({ alerts, open, onClose, onLocate }: {
                 style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '9px 0', cursor: 'pointer' }}
               >
                 <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <span style={{ background: SEVERITY_COLOR[a.severity], color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '1px 6px', textTransform: 'uppercase' }}>{a.severity}</span>
+                  <span style={{ background: SEVERITY_COLOR[a.severity], color: '#fff', fontSize: 12, fontWeight: 700, borderRadius: 6, padding: '1px 6px', textTransform: 'uppercase' }}>{a.severity}</span>
                   <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>{row.title}</span>
-                  <span style={{ fontSize: 11, color: row.isOpen ? '#b45309' : '#64748b', fontWeight: 600 }}>{STATUS_LABEL[a.status]}</span>
+                  <span style={{ fontSize: 12, color: row.isOpen ? '#b45309' : '#64748b', fontWeight: 600 }}>{STATUS_LABEL[a.status]}</span>
                 </span>
-                <span style={{ display: 'block', fontSize: 11, color: '#64748b', marginTop: 2 }}>{row.meta}</span>
+                <span style={{ display: 'block', fontSize: 12, color: '#64748b', marginTop: 2 }}>{row.meta}</span>
               </button>
               {active && detail && detail.alert_id === a.alert_id && (
                 <Detail a={detail} enabled={alerts.decisionsEnabled} demo={alerts.demoReadonly} onLocate={onLocate} onDone={alerts.refresh} />

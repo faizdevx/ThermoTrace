@@ -19,7 +19,7 @@ interface StatDef {
 // Every value is computed by the API over ACTIVE sites matching the current filters
 // (state, district, industry, status, evidence, search) - never the map viewport.
 const STAT_DEFS: StatDef[] = [
-  { id: 'sites', label: 'Industrial Sites', icon: '🏭', color: '#0ea5e9', bg: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)', border: '#bfdbfe',
+  { id: 'sites', label: 'Industrial Sites', icon: '🏭', color: '#0369a1', bg: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)', border: '#bfdbfe',
     value: s => s.total_sites, hint: 'Active mapped sites matching the filters' },
   { id: 'states', label: 'States', icon: '🗺️', color: '#7c3aed', bg: 'linear-gradient(135deg, #faf5ff 0%, #ede9fe 100%)', border: '#ddd6fe',
     value: s => s.distinct_states ?? Object.keys(s.by_state).length, hint: 'Distinct states containing matching sites' },
@@ -79,7 +79,7 @@ export function StatisticsCards({ statistics, onShowAnalytics }: StatisticsCards
           </p>
           <p
             style={{
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: 600,
               textTransform: 'uppercase',
               letterSpacing: '0.07em',
@@ -124,7 +124,7 @@ export function StatisticsCards({ statistics, onShowAnalytics }: StatisticsCards
       >
         <span style={{ fontSize: 20 }}>📊</span>
         <span style={{
-          fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+          fontSize: 12, fontWeight: 700, textTransform: 'uppercase',
           letterSpacing: '0.07em', color: '#7dd3fc',
         }}>
           Analytics

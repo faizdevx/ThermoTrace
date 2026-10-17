@@ -12,7 +12,7 @@ interface Props {
 
 const linkStyle: React.CSSProperties = {
   padding: '3px 10px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff',
-  color: '#0f172a', fontSize: 11, fontWeight: 600, textDecoration: 'none', cursor: 'pointer',
+  color: '#0f172a', fontSize: 12, fontWeight: 600, textDecoration: 'none', cursor: 'pointer',
 };
 
 /**
@@ -24,7 +24,7 @@ export function ExportMenu({ filters, viewportBbox, totalMatching, disabled }: P
   const effective = { ...filters, ...(viewOnly && viewportBbox ? { bbox: viewportBbox } : {}) };
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-      <span style={{ fontSize: 11, color: '#64748b' }}>
+      <span style={{ fontSize: 12, color: '#64748b' }}>
         Export {viewOnly ? 'map view' : totalMatching != null ? `${totalMatching.toLocaleString()} matching` : 'all matching'}:
       </span>
       {(['csv', 'geojson'] as const).map(format => (
@@ -39,7 +39,7 @@ export function ExportMenu({ filters, viewportBbox, totalMatching, disabled }: P
           {format === 'csv' ? 'CSV' : 'GeoJSON'}
         </a>
       ))}
-      <label style={{ fontSize: 11, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+      <label style={{ fontSize: 12, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
         <input type="checkbox" checked={viewOnly} onChange={e => setViewOnly(e.target.checked)} />
         map view only
       </label>

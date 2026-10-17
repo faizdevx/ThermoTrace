@@ -3,7 +3,7 @@ import { createUser, fetchAudit, fetchUsers, updateUser, verifyAudit } from '@/s
 import type { AuditEntry, AuthUser, Role } from '@/types/industrial';
 
 const card: React.CSSProperties = { background: 'rgba(255,255,255,0.92)', borderRadius: 14, padding: '14px 16px', boxShadow: '0 1px 4px rgba(15,23,42,0.08)' };
-const h: React.CSSProperties = { margin: '0 0 10px', fontSize: 11, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: '#64748b' };
+const h: React.CSSProperties = { margin: '0 0 10px', fontSize: 12, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: '#64748b' };
 const input: React.CSSProperties = { padding: '6px 8px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13 };
 const ROLES: Role[] = ['viewer', 'analyst', 'admin'];
 const ACTIONS = ['', 'login', 'alert.decision', 'export', 'user', 'access.denied', 'admin'];
@@ -96,11 +96,11 @@ function Audit() {
             {entries.map(e => (
               <tr key={e.audit_id} style={{ borderTop: '1px solid #f1f5f9' }}>
                 <td style={{ padding: '4px', whiteSpace: 'nowrap' }}>{e.at.replace('T', ' ').slice(0, 19)}</td>
-                <td>{e.actor}{e.role ? <span style={{ color: '#94a3b8' }}> ({e.role})</span> : null}</td>
+                <td>{e.actor}{e.role ? <span style={{ color: '#64748b' }}> ({e.role})</span> : null}</td>
                 <td><code>{e.action}</code></td>
                 <td>{e.target ?? ''}</td>
                 <td style={{ maxWidth: 360, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={JSON.stringify(e.detail)}>{summariseDetail(e)}</td>
-                <td style={{ color: '#94a3b8' }}>{e.ip ?? ''}</td>
+                <td style={{ color: '#64748b' }}>{e.ip ?? ''}</td>
               </tr>
             ))}
           </tbody>

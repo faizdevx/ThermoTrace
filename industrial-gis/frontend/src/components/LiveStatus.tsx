@@ -45,7 +45,7 @@ const SOURCE_LABEL: Record<string, string> = {
 
 function Row({ k, v }: { k: string; v: string }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 11, padding: '1px 0' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 12, padding: '1px 0' }}>
       <span style={{ color: '#64748b' }}>{k}</span>
       <span style={{ color: '#0f172a', fontWeight: 600, textAlign: 'right' }}>{v}</span>
     </div>
@@ -58,11 +58,11 @@ function SourceBlock({ s, nowMs }: { s: SyncSource; nowMs: number }) {
     <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 8, marginTop: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
         <strong style={{ fontSize: 12, color: '#0f172a' }}>{SOURCE_LABEL[s.source] ?? s.source}</strong>
-        <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 99, color: st.color, background: st.bg }}>
+        <span style={{ fontSize: 12, fontWeight: 700, padding: '1px 8px', borderRadius: 99, color: st.color, background: st.bg }}>
           {st.label}
         </span>
       </div>
-      <div style={{ fontSize: 11, color: '#475569', marginBottom: 4 }}>{s.reason}</div>
+      <div style={{ fontSize: 12, color: '#475569', marginBottom: 4 }}>{s.reason}</div>
       {s.enabled && (
         <>
           <Row k="Source cadence" v={s.update_cadence ?? 'unknown'} />
@@ -74,7 +74,7 @@ function SourceBlock({ s, nowMs }: { s: SyncSource; nowMs: number }) {
         </>
       )}
       {s.last_error && s.state !== 'not_configured' && (
-        <div style={{ marginTop: 4, fontSize: 11, color: '#b91c1c', wordBreak: 'break-word' }}>
+        <div style={{ marginTop: 4, fontSize: 12, color: '#b91c1c', wordBreak: 'break-word' }}>
           Unresolved error: {s.last_error}
           {s.next_retry_at ? ` (retry ${ageFromIso(s.next_retry_at, nowMs).replace(' ago', '')} from now)` : ''}
         </div>
@@ -124,7 +124,7 @@ export function LiveStatus({ status, unreachable, connection, lastUiUpdate, onRe
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer',
           padding: '3px 10px', borderRadius: 99, border: `1px solid ${style.color}33`,
-          background: style.bg, color: style.color, fontSize: 11, fontWeight: 700,
+          background: style.bg, color: style.color, fontSize: 12, fontWeight: 700,
           fontFamily: "'IBM Plex Sans', sans-serif",
         }}
       >
@@ -148,7 +148,7 @@ export function LiveStatus({ status, unreachable, connection, lastUiUpdate, onRe
             boxShadow: '0 12px 40px rgba(15,23,42,0.2)', padding: 14, fontFamily: "'IBM Plex Sans', sans-serif",
           }}
         >
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: '#94a3b8', textTransform: 'uppercase', marginBottom: 6 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.1em', color: '#64748b', textTransform: 'uppercase', marginBottom: 6 }}>
             Status (reported separately)
           </div>
           <Row k="API" v={unreachable ? 'unreachable' : 'alive'} />
@@ -162,7 +162,7 @@ export function LiveStatus({ status, unreachable, connection, lastUiUpdate, onRe
             />
           )}
           {status?.sources.map(s => <SourceBlock key={s.source} s={s} nowMs={nowMs} />)}
-          <div style={{ marginTop: 10, fontSize: 10, color: '#94a3b8', lineHeight: 1.4 }}>
+          <div style={{ marginTop: 10, fontSize: 12, color: '#64748b', lineHeight: 1.4 }}>
             "Live" means checked recently, caught up with the source, and within its freshness target.
             It does not mean real-time: OpenStreetMap regional diffs are published about once a day.
           </div>

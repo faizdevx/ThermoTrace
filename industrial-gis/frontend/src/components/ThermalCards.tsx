@@ -1,3 +1,4 @@
+import { Icon, type IconName } from '@/components/Icon';
 import type { FacilityCollection, FeatureCollection, ThermalFeature, ThermalStats } from '@/types/industrial';
 
 /** Headline numbers for the default (thermal + facilities) view. The OSM-pilot cards replace these only when
@@ -27,20 +28,20 @@ export function thermalCardValues(stats: ThermalStats | null, data: FeatureColle
   };
 }
 
-const CARDS: { key: keyof ThermalCardValues; label: string; icon: string; color: string; bg: string; border: string; hint: string }[] = [
-  { key: 'sources', label: 'Thermal sources', icon: '🔥', color: '#ea580c', bg: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)', border: '#fed7aa',
+const CARDS: { key: keyof ThermalCardValues; label: string; icon: IconName; color: string; bg: string; border: string; hint: string }[] = [
+  { key: 'sources', label: 'Thermal sources', icon: 'flame', color: '#ea580c', bg: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)', border: '#fed7aa',
     hint: 'Classified NASA FIRMS sources matching the thermal filters' },
-  { key: 'alerts', label: 'Alerts', icon: '🚨', color: '#dc2626', bg: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)', border: '#fecaca',
+  { key: 'alerts', label: 'Alerts', icon: 'siren', color: '#dc2626', bg: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)', border: '#fecaca',
     hint: 'Open alerts in the inbox (a source that looks like an industrial fire or runs far above its facility baseline); the thermal-source flag when no inbox is available' },
-  { key: 'persistent', label: 'Persistent industrial', icon: '🏭', color: '#b91c1c', bg: 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)', border: '#fecdd3',
+  { key: 'persistent', label: 'Persistent industrial', icon: 'factory', color: '#b91c1c', bg: 'linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)', border: '#fecdd3',
     hint: 'Recurring heat at a known facility' },
-  { key: 'fireCandidates', label: 'Possible industrial fire', icon: '⚠️', color: '#c2410c', bg: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)', border: '#fde68a',
+  { key: 'fireCandidates', label: 'Possible industrial fire', icon: 'warning', color: '#c2410c', bg: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)', border: '#fde68a',
     hint: 'Episodic heat at a facility - verify with imagery' },
-  { key: 'newHeat', label: 'New heat (no 365-day history)', icon: '🆕', color: '#7c3aed', bg: 'linear-gradient(135deg, #faf5ff 0%, #ede9fe 100%)', border: '#ddd6fe',
+  { key: 'newHeat', label: 'New heat (no 365-day history)', icon: 'spark', color: '#7c3aed', bg: 'linear-gradient(135deg, #faf5ff 0%, #ede9fe 100%)', border: '#ddd6fe',
     hint: 'Sources at places with no VIIRS detection in the 365-day baseline' },
-  { key: 'facilities', label: 'Facilities', icon: '⚙️', color: '#0369a1', bg: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)', border: '#bfdbfe',
+  { key: 'facilities', label: 'Facilities', icon: 'gear', color: '#0369a1', bg: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)', border: '#bfdbfe',
     hint: 'Merged facility database (OSM, WRI, GEM, flare sites)' },
-  { key: 'multiSource', label: 'Confirmed by 2+ sources', icon: '✅', color: '#059669', bg: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)', border: '#a7f3d0',
+  { key: 'multiSource', label: 'Confirmed by 2+ sources', icon: 'check', color: '#059669', bg: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)', border: '#a7f3d0',
     hint: 'Facilities that more than one independent source lists' },
 ];
 
@@ -54,11 +55,10 @@ export function ThermalCards({ values }: { values: ThermalCardValues }) {
         }}>
           <p data-testid={`card-${c.key}`} style={{ fontSize: 20, fontWeight: 800, color: c.color, margin: 0, lineHeight: 1.1,
             letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 14 }} aria-hidden>{c.icon}</span>
+            <Icon name={c.icon} size={16} />
             {values[c.key] != null ? (values[c.key] as number).toLocaleString() : '—'}
           </p>
-          <p style={{ fontSize: 10, fontWeight: 600, color: c.color, opacity: 0.8, margin: 0, whiteSpace: 'nowrap',
-            overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.label}</p>
+          <p style={{ fontSize: 12, fontWeight: 600, color: c.color, opacity: 0.8, margin: 0, lineHeight: 1.25 }}>{c.label}</p>
         </article>
       ))}
     </div>

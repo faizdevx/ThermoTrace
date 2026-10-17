@@ -10,7 +10,7 @@ const NA = 'Not available';
 function Row({ k, children }: { k: string; children: ReactNode }) {
   return (
     <div style={{ padding: '7px 0', borderBottom: '1px solid #f1f5f9' }}>
-      <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.09em', color: '#94a3b8', margin: '0 0 2px' }}>{k}</p>
+      <p style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.09em', color: '#64748b', margin: '0 0 2px' }}>{k}</p>
       <div style={{ fontSize: 13, color: '#1e293b', fontWeight: 500, wordBreak: 'break-word' }}>{children}</div>
     </div>
   );
@@ -59,7 +59,7 @@ function ImageryPanel({ sourceId }: { sourceId: string }) {
       <img src={src} alt={caption} style={{ width: '100%', display: 'block', borderRadius: 8 }} />
       <span aria-hidden style={{ position: 'absolute', left: '50%', top: '38%', width: 14, height: 14, marginLeft: -7, marginTop: -7,
                                  border: '1.5px solid #fff', borderRadius: '50%', boxShadow: '0 0 0 1px #0f172a' }} />
-      <figcaption style={{ fontSize: 10.5, color: '#475569', marginTop: 3 }}>{caption}</figcaption>
+      <figcaption style={{ fontSize: 12.5, color: '#475569', marginTop: 3 }}>{caption}</figcaption>
     </figure>
   );
   const tone = e.dnbr?.tone === 'high' ? { bg: '#fef2f2', fg: '#b91c1c' } : e.dnbr?.tone === 'low' ? { bg: '#fffbeb', fg: '#b45309' }
@@ -72,10 +72,10 @@ function ImageryPanel({ sourceId }: { sourceId: string }) {
           {e.panels.map(p => figure(p.key, p.src, p.title))}
         </div>
       )}
-      {e.afterLine && <div data-testid="imagery-scene" style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>{e.afterLine}</div>}
-      {e.beforeLine && <div style={{ fontSize: 11, color: '#64748b' }}>{e.beforeLine}</div>}
+      {e.afterLine && <div data-testid="imagery-scene" style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{e.afterLine}</div>}
+      {e.beforeLine && <div style={{ fontSize: 12, color: '#64748b' }}>{e.beforeLine}</div>}
       {e.available && !e.dnbr && (
-        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>No clear earlier scene or too much cloud over the chip: no dNBR.</div>
+        <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>No clear earlier scene or too much cloud over the chip: no dNBR.</div>
       )}
       {e.dnbr && (
         <div data-testid="imagery-dnbr" style={{ marginTop: 5, fontSize: 12, padding: '4px 8px', borderRadius: 8, background: tone.bg,
@@ -85,7 +85,7 @@ function ImageryPanel({ sourceId }: { sourceId: string }) {
       )}
       {e.hotPixels && <div data-testid="imagery-hot" style={{ fontSize: 12, marginTop: 4 }}>{e.hotPixels}</div>}
       {e.landsat && <div data-testid="imagery-landsat" style={{ fontSize: 12, marginTop: 2, color: '#334155' }}>{e.landsat}</div>}
-      <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 3 }}>
+      <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>
         {state.data.attribution ?? 'Contains modified Copernicus Sentinel data (ESA); Landsat courtesy of USGS.'}
       </div>
     </>
@@ -116,7 +116,7 @@ function ModelRow({ p }: { p: ThermalProperties }) {
       <div data-testid="model-headline" style={{ fontWeight: 600 }}>{m.headline}</div>
       <div data-testid="model-agreement" style={{ fontSize: 12, color: tone, fontWeight: 500 }}>{m.note}</div>
       {m.bars.map(b => (
-        <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, margin: '2px 0' }}>
+        <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, margin: '2px 0' }}>
           <span style={{ flex: '0 0 170px', color: '#475569' }}>{b.label}</span>
           <div style={{ flex: 1, height: 6, background: '#e2e8f0', borderRadius: 9 }}>
             <div style={{ width: `${Math.round(b.p * 100)}%`, height: '100%', background: '#0369a1', borderRadius: 9 }} />
@@ -130,7 +130,7 @@ function ModelRow({ p }: { p: ThermalProperties }) {
         </ul>
       )}
       {m.available && (
-        <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 3 }}>
+        <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>
           Calibrated probabilities; reasons are sampling Shapley values. Model {m.version}. Trained on rule-derived weak labels - see docs/EVALUATION.md.
         </div>
       )}
@@ -161,13 +161,13 @@ function BaselineRow({ p }: { p: ThermalProperties }) {
                   background: i === monthNow ? '#0369a1' : '#94a3b8', borderRadius: 2, opacity: v == null ? 0.25 : 1 }} />
             ))}
           </div>
-          <div style={{ display: 'flex', gap: 2, fontSize: 8, color: '#94a3b8' }}>
+          <div style={{ display: 'flex', gap: 2, fontSize: 8, color: '#64748b' }}>
             {MONTH_LABELS.map(m => <span key={m} style={{ flex: 1, textAlign: 'center' }}>{m[0]}</span>)}
           </div>
         </div>
       )}
       {b.available && (
-        <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 3 }}>
+        <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>
           Baseline excludes the most recent 14 days; low-confidence pixels are dropped.
         </div>
       )}
@@ -194,7 +194,7 @@ export function ThermalDetails({ feature, info, gone, onClose }: Props) {
       <div style={{ background: `linear-gradient(135deg, #0f172a 0%, ${color}cc 140%)`, padding: '18px 20px', position: 'sticky', top: 0, zIndex: 1 }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#fcd34d', margin: '0 0 4px' }}>Thermal source · NASA FIRMS</p>
+            <p style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#fcd34d', margin: '0 0 4px' }}>Thermal source · NASA FIRMS</p>
             <h2 style={{ fontSize: 15, fontWeight: 700, color: '#f8fafc', margin: 0, lineHeight: 1.35 }}>{p?.thermal_label}</h2>
             <p style={{ fontSize: 12, color: '#cbd5e1', margin: '4px 0 0' }}>
               {p?.site_within && p.site_name ? p.site_name : 'No mapped facility'}{p?.state ? ` · ${p.state}` : ''}
@@ -222,7 +222,7 @@ export function ThermalDetails({ feature, info, gone, onClose }: Props) {
             <ul style={{ margin: '2px 0 0', paddingLeft: 18, fontSize: 12.5, fontWeight: 400, lineHeight: 1.5 }}>
               {p.reasons.map(r => <li key={r}>{r}</li>)}
             </ul>
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
               Evidence margin {Math.round(p.class_margin * 100)} points → <strong>{p.class_confidence}</strong> separation from the next class.
               A heuristic score, not a verified cause.
             </div>
@@ -230,7 +230,7 @@ export function ThermalDetails({ feature, info, gone, onClose }: Props) {
 
           <Row k="Class scores (share of evidence)">
             {Object.entries(p.class_scores).sort(([, a], [, b]) => b - a).slice(0, 4).map(([id, v]) => (
-              <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, margin: '2px 0' }}>
+              <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, margin: '2px 0' }}>
                 <span style={{ flex: '0 0 150px', color: '#475569' }}>{id.replace(/_/g, ' ')}</span>
                 <div style={{ flex: 1, height: 6, background: '#e2e8f0', borderRadius: 9 }}>
                   <div style={{ width: `${Math.round(v * 100)}%`, height: '100%', background: id === p.thermal_class ? color : '#94a3b8', borderRadius: 9 }} />
@@ -244,7 +244,7 @@ export function ThermalDetails({ feature, info, gone, onClose }: Props) {
             {p.n_detections} detections on {p.n_days} day(s) · radiative power max {p.frp_max.toFixed(1)} / mean {p.frp_mean.toFixed(1)} MW ·
             {' '}{Math.round(p.night_fraction * 100)}% at night · footprint {Math.round(p.extent_m)} m
             <div style={{ marginTop: 6 }}>{p.detections && <Timeline detections={p.detections} />}</div>
-            <div style={{ fontSize: 10, color: '#94a3b8' }}>Dark bars = night passes, amber = day. Height = FRP.</div>
+            <div style={{ fontSize: 12, color: '#64748b' }}>Dark bars = night passes, amber = day. Height = FRP.</div>
           </Row>
 
           <ModelRow p={p} />
@@ -278,8 +278,8 @@ export function ThermalDetails({ feature, info, gone, onClose }: Props) {
           </Row>
 
           <Row k="Location">{lat.toFixed(5)}, {lon.toFixed(5)} · instruments: {p.instruments.replace(/VIIRS_|_NRT/g, '')}</Row>
-          <Row k="Source ID"><code style={{ fontSize: 11 }}>{p.source_id}</code></Row>
-          <p style={{ fontSize: 10.5, color: '#94a3b8', marginTop: 10, lineHeight: 1.45 }}>
+          <Row k="Source ID"><code style={{ fontSize: 12 }}>{p.source_id}</code></Row>
+          <p style={{ fontSize: 12.5, color: '#64748b', marginTop: 10, lineHeight: 1.45 }}>
             Thermal anomalies are detected by NASA VIIRS at 375 m. A detection shows heat, not its cause: confirm industrial incidents with
             high-resolution imagery or ground reports. Data: NASA FIRMS, © OpenStreetMap contributors (ODbL), ESA WorldCover (CC BY 4.0).
           </p>

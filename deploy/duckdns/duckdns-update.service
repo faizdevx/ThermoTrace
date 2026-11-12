@@ -1,0 +1,8 @@
+[Unit]
+Description=Update the ThermoTrace DuckDNS record
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/thermotrace/duckdns-update.sh

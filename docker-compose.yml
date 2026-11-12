@@ -12,7 +12,7 @@ x-db-env: &db-env
 
 services:
   db:
-    image: postgis/postgis:16-3.4
+    image: ${POSTGIS_IMAGE:-postgis/postgis:16-3.4}   # amd64 only; on ARM (Oracle Ampere A1) set POSTGIS_IMAGE=imresamu/postgis:16-3.4
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-thermotrace}
       POSTGRES_USER: ${POSTGRES_USER:-thermotrace}

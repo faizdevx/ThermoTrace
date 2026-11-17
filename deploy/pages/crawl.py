@@ -13,7 +13,6 @@ import requests
 FILES = {
     "health.json": "/health", "sync_status.json": "/sync/status", "auth_me.json": "/auth/me",
     "thermal/classes.json": "/thermal/classes", "thermal/status.json": "/thermal/status",
-    "thermal/sources.json": "/thermal/sources?limit=20000",
     "thermal/stats.json": "/thermal/stats", "thermal/stats_h24.json": "/thermal/stats?hours=24", "thermal/stats_h72.json": "/thermal/stats?hours=72",
     "facilities.json": "/facilities?limit=20000", "boundaries_states.json": "/boundaries/states", "boundaries_india.json": "/boundaries/india",
     "dashboard.json": "/dashboard", "alerts.json": "/alerts", "statistics.json": "/statistics", "filter_options.json": "/filters/options",
@@ -33,6 +32,22 @@ def main(out: Path, api: str) -> int:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(r.text, encoding="utf-8")
         print(f"{name:<28} {len(r.content) / 1e6:6.2f} MB")
+    # all current sources, in pages of the API's maximum (5000)
+    features, offset = [], 0
+    while True:
+        r = s.get(f"{api}/thermal/sources?limit=5000&offset={offset}", timeout=120)
+        if not r.ok:
+            failed.append(f"/thermal/sources: HTTP {r.status_code}")
+            break
+        page = r.json()
+        features += page["features"]
+        offset += len(page["features"])
+        if not page["features"] or not page.get("meta", {}).get("truncated"):
+            page["features"], page["meta"] = features, {**page.get("meta", {}), "returned": len(features), "offset": 0, "truncated": False}
+            (out / "thermal").mkdir(exist_ok=True)
+            (out / "thermal" / "sources.json").write_text(json.dumps(page), encoding="utf-8")
+            print(f"thermal/sources.json         {len(features)} sources")
+            break
     # one file per alert for the inbox detail view
     alerts = json.loads((out / "alerts.json").read_text(encoding="utf-8")).get("alerts", []) if (out / "alerts.json").exists() else []
     (out / "alerts").mkdir(exist_ok=True)

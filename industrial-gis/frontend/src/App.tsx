@@ -399,7 +399,7 @@ export default function App() {
   const synthetic = health?.synthetic === true || sites?.meta?.synthetic === true;
   const dbProblem = health !== null && !synthetic && health.database?.status !== undefined
     && health.database.status !== 'ok' && health.database.status !== 'not_used';
-  const datasetEmpty = health !== null && !synthetic && health.ready === false && !dbProblem
+  const datasetEmpty = !STATIC_DATA && health !== null && !synthetic && health.ready === false && !dbProblem
     && (health.dataset?.active_sites ?? 0) === 0;
   const anyFilter = Boolean(activeQuery || selectedState || selectedDistrict || selectedIndustryType
     || selectedStatus || selectedConfidence);

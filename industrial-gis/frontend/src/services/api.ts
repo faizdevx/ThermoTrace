@@ -28,6 +28,8 @@ import type {
   ThermalStatus,
 } from '@/types/industrial';
 
+import { STATIC_DATA, StaticMiss, staticRequest } from '@/services/staticApi';
+
 export const API_BASE: string =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '/api';
 
@@ -61,6 +63,14 @@ async function requestJson<T>(
   path: string,
   options: { timeoutMs?: number; signal?: AbortSignal; method?: 'GET' | 'POST' | 'PATCH'; body?: unknown; headers?: Record<string, string> } = {},
 ): Promise<T> {
+  if (STATIC_DATA) {
+    if ((options.method ?? 'GET') !== 'GET') throw new ApiError(403, 'This public site is read-only', path);
+    try {
+      return await staticRequest<T>(path);
+    } catch (err) {
+      throw new ApiError(err instanceof StaticMiss ? 404 : 0, err instanceof Error ? err.message : String(err), path);
+    }
+  }
   const controller = new AbortController();
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   let timedOut = false;

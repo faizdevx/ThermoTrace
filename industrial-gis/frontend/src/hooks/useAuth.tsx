@@ -16,6 +16,8 @@ export interface AuthState {
   signOut: () => Promise<void>;
 }
 
+import { STATIC_DATA } from '@/services/staticApi';
+
 const Ctx = createContext<AuthState>({ loading: false, me: null, enforced: false, user: null, can: () => true, signIn: async () => {}, signOut: async () => {} });
 
 export function useAuth(): AuthState {
@@ -44,7 +46,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const user = me?.user ?? null;
     return {
       loading, me, enforced, user,
-      can: (role: Role) => !enforced || (!!user && RANK[user.role] >= RANK[role]),
+      // the static public site has no server to write to: everybody is a viewer
+      can: (role: Role) => (STATIC_DATA ? role === 'viewer' : !enforced || (!!user && RANK[user.role] >= RANK[role])),
       signIn: async (username, password) => { const r = await apiLogin(username, password); setMe(m => (m ? { ...m, user: r.user } : m)); },
       signOut: async () => { await apiLogout().catch(() => undefined); setMe(m => (m ? { ...m, user: null } : m)); },
     };

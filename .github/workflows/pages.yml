@@ -1,0 +1,96 @@
+# Public live site on GitHub Pages, no server: every 20 minutes the runner loads the saved state into PostGIS, runs one real FIRMS
+# cycle (fetch, classify, alerts), saves the state back to the pages-state branch, asks the real API for every view and publishes
+# those answers with the static build of the app (VITE_STATIC_DATA=1). docs/DEPLOY_PAGES.md
+name: Live site (GitHub Pages)
+
+on:
+  schedule:
+    - cron: "7,27,47 * * * *"     # off the hour: scheduled runs at :00 are the most delayed
+  workflow_dispatch:
+
+permissions:
+  contents: write                  # push the pages-state branch
+  pages: write
+  id-token: write
+
+concurrency:
+  group: live-site
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    services:
+      postgis:
+        image: postgis/postgis:16-3.4
+        env: { POSTGRES_PASSWORD: live, POSTGRES_USER: thermotrace, POSTGRES_DB: thermotrace }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U thermotrace" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql+psycopg2://thermotrace:live@localhost:5432/thermotrace
+      PYTHONPATH: ${{ github.workspace }}/industrial-gis:${{ github.workspace }}/industrial-data
+      DATA_MODE: postgis
+      DEMO_READONLY: "true"
+      THERMAL_DATA_DIR: ${{ github.workspace }}/run/live
+      THERMAL_BASELINE_DIR: ${{ github.workspace }}/run/baseline
+      THERMAL_SITES_FROM_DB: "1"
+      THERMAL_IMAGERY: "false"     # no on-demand imagery on a static site
+      FIRMS_MAP_KEY: ${{ secrets.FIRMS_MAP_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: { ref: pages-state, path: state }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: "industrial-data/requirements.txt" }
+      - run: pip install -r industrial-data/requirements.txt -r industrial-gis/backend/requirements.txt
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: industrial-gis/frontend/package-lock.json }
+
+      - name: Schema and saved state
+        run: |
+          (cd industrial-data && python -m src.sync.cli migrate)
+          python deploy/pages/state.py load state
+
+      - name: One FIRMS cycle
+        id: cycle
+        continue-on-error: true    # FIRMS down: publish the last state, the status shows how old it is
+        working-directory: industrial-data
+        run: python -m src.thermal.cli refresh
+
+      - name: Save state
+        if: steps.cycle.outcome == 'success'
+        run: |
+          python deploy/pages/state.py save state
+          cd state
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # one commit only: the branch carries the latest state, not a history of it
+          git checkout --orphan next
+          git add -A
+          git commit -q -m "state $(date -u +%FT%TZ)"
+          git push -q --force origin next:pages-state
+
+      - name: API answers to files
+        run: |
+          (cd industrial-gis && uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 > ../api.log 2>&1 &)
+          for i in $(seq 1 60); do curl -fs http://127.0.0.1:8000/api/health >/dev/null && break; sleep 2; done
+          python deploy/pages/crawl.py site-data || { cat api.log; exit 1; }
+
+      - name: Static build
+        working-directory: industrial-gis/frontend
+        env: { VITE_STATIC_DATA: "1" }
+        run: |
+          npm ci
+          npx vite build --base=/${{ github.event.repository.name }}/ --outDir ../../site
+          cp -r ../../site-data ../../site/data
+          touch ../../site/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: site }
+      - id: deploy
+        uses: actions/deploy-pages@v4

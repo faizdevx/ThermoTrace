@@ -23,6 +23,7 @@ import { FacilitySearch } from '@/components/FacilitySearch';
 import { boxAround } from '@/components/facilityLookup';
 import { HelpGuide, guideSeen } from '@/components/HelpGuide';
 import { useThermal } from '@/hooks/useThermal';
+import { STATIC_DATA, clearStaticCache } from '@/services/staticApi';
 import {
   ApiError,
   checkHealth,
@@ -151,6 +152,13 @@ export default function App() {
     refreshThermal();
     refreshAlerts();
     setLiveToast('Thermal data updated');
+  }, [refreshThermal, refreshAlerts]);
+
+  // static public site: the files are republished by a scheduled job; reload them every 5 minutes
+  useEffect(() => {
+    if (!STATIC_DATA) return;
+    const id = setInterval(() => { clearStaticCache(); refreshThermal(); refreshAlerts(); }, 5 * 60_000);
+    return () => clearInterval(id);
   }, [refreshThermal, refreshAlerts]);
 
   const { connection } = useLiveUpdates({

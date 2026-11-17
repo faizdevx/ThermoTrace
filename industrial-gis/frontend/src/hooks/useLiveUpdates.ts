@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { API_BASE, fetchSyncStatus } from '@/services/api';
+import { STATIC_DATA } from '@/services/staticApi';
 import type { RevisionEvent } from '@/types/industrial';
 
 export type LiveConnection = 'connecting' | 'sse' | 'polling' | 'offline';
@@ -70,7 +71,7 @@ export function useLiveUpdates({ onRevision, onSyncEvent, onThermal }: Options) 
     };
 
     function openStream() {
-      if (cancelled || typeof EventSource === 'undefined') { startPolling(); return; }
+      if (cancelled || STATIC_DATA || typeof EventSource === 'undefined') { startPolling(); return; }
       source?.close();
       const es = new EventSource(`${API_BASE}/events`);
       source = es;

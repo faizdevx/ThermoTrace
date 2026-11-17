@@ -111,7 +111,12 @@ export function useThermal() {
     setSelectedId(id);
     setSelectedGone(false);
     if (id === null) setSelected(null);
-    else setSelected(prev => (prev?.properties.source_id === id ? prev : data?.features.find(f => f.properties.source_id === id) ?? null));
+    else setSelected(prev => {
+      if (prev?.properties.source_id === id) return prev;
+      // the static site's map list is slim (no reasons, scores...): only show a cached record that is complete
+      const cached = data?.features.find(f => f.properties.source_id === id);
+      return cached && Array.isArray(cached.properties.reasons) ? cached : null;
+    });
   }, [data]);
 
   return {

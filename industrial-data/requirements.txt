@@ -1,6 +1,6 @@
 geopandas>=0.14
 shapely>=2.0
-pandas>=2.1
+pandas==3.0.6   # pinned: the committed model pickle stores pandas dtypes of this version
 pyproj>=3.6
 requests>=2.31
 httpx>=0.27

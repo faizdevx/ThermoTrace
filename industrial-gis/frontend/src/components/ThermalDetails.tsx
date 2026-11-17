@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { fetchThermalImagery } from '@/services/api';
+import { STATIC_DATA } from '@/services/staticApi';
 import { baselineSummary, MONTH_LABELS, type Deviation } from '@/components/baselineSummary';
 import { modelOpinion } from '@/components/modelOpinion';
 import { imageryEvidence } from '@/components/imageryEvidence';
@@ -274,7 +275,9 @@ export function ThermalDetails({ feature, info, gone, onClose }: Props) {
           </Row>
 
           <Row k="Satellite imagery (Sentinel-2 after / before, dNBR, SWIR hot pixels; Landsat thermal)">
-            <ImageryPanel sourceId={p.source_id} />
+            {STATIC_DATA
+              ? <span style={{ fontSize: 12, color: '#64748b' }}>Sentinel-2 / Landsat checks run in the full app, not on this public site.</span>
+              : <ImageryPanel sourceId={p.source_id} />}
           </Row>
 
           <Row k="Location">{lat.toFixed(5)}, {lon.toFixed(5)} · instruments: {p.instruments.replace(/VIIRS_|_NRT/g, '')}</Row>

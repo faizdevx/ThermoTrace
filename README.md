@@ -503,8 +503,9 @@ Code: see `LICENSE`. Data: © OpenStreetMap contributors (ODbL 1.0); NASA FIRMS 
 | **Map** | Every heat source NASA's VIIRS satellites saw over India in the last ~2 weeks, coloured by class: red = persistent industrial heat, orange = possible industrial fire, purple = persistent heat with no mapped facility; crop and forest fires appear as a faint density grid when zoomed out and as dots from zoom 8. The cards on top count sources, open alerts, industrial classes, new heat and the 12,762 mapped facilities. |
 | **Thermal panel** (left) | Turn classes on and off, pick the time window (24 h / 3 days / all), set a minimum fire power, or show alerts only. The badge shows how old the newest detection is (`live` / `delayed`). |
 | **Search box** | Type a plant, mine or refinery name and pick it: the map flies there. Press `/` to jump to it, `?` for the quick guide. |
-| **Alerts** (red button) | Abnormal heat at industrial sites: a likely industrial fire, or heat far above the site's own 365-day baseline (for example "+12.6 sd vs own baseline"). Open one for the reasons in words and its timeline. |
+| **Alerts** (red button) | Abnormal heat at industrial sites: a likely industrial fire, or heat far above the site's own 365-day baseline (for example "+12.6 sd vs own baseline"). Open one for the reasons in words and its timeline. The public site lists the last 7 days of alerts. |
 | **Click a dot** | Class and confidence, nearest facility, the trained model's second opinion, comparison with the site's own history, land cover. |
+| **Click a facility** (tick *Facilities* under Layers) | Name, kind, capacity and which databases list it. |
 | **3D Globe** | The same sources as columns whose height grows with fire power, on NASA satellite imagery (daily true colour, night lights, Blue Marble) with terrain relief. |
 | **Dashboard** | Alerts today, source totals, industrial share, class mix over time, top states, and the model card with its accuracy and caveats. |
 

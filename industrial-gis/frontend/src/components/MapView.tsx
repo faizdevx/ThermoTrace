@@ -5,7 +5,7 @@ import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import 'leaflet.markercluster';
 import { fetchFacility } from '@/services/api';
-import { facilityPopupHtml } from '@/components/facilityPopup';
+import { escapeHtml, facilityPopupHtml } from '@/components/facilityPopup';
 import { createBasemap } from '@/components/basemap';
 import { cellOpacity, DENSITY_ZOOM, dominantClass, splitForZoom } from '@/components/thermalDensity';
 import type {
@@ -356,7 +356,14 @@ export function MapView({
             }).addTo(outline);
           }
           L.popup({ maxWidth: 300 }).setLatLng([lat, lon]).setContent(facilityPopupHtml(detail)).openOn(map);
-        }).catch(() => { /* aborted or offline: tooltip still shows the basics */ });
+        }).catch(() => {
+          if (controller.signal.aborted) return;
+          // no detail endpoint (static public site, API down): popup from the layer's own fields
+          L.popup({ maxWidth: 300 }).setLatLng([lat, lon]).setContent(
+            `<strong>${escapeHtml(p.name ?? 'Unnamed facility')}</strong><br>${escapeHtml(p.kind.replace(/_/g, ' '))}`
+            + `${p.capacity_mw ? ` - ${Math.round(p.capacity_mw)} MW` : ''}<br><small>Sources: ${escapeHtml(p.sources.split(',').join(', '))}</small>`,
+          ).openOn(map);
+        });
       });
       marker.addTo(layer);
       marker.bringToBack();

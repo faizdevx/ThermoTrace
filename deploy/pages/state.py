@@ -42,6 +42,9 @@ def load(state: Path, live: Path) -> None:
             cur.copy_expert(f"COPY {table} ({cols}) FROM STDIN WITH (FORMAT csv, HEADER)", io.BytesIO(raw))
             print("loaded", table)
         cur.execute("SELECT setval(pg_get_serial_sequence('alerts', 'alert_id'), COALESCE((SELECT max(alert_id) FROM alerts), 1))")
+        # nobody closes alerts on the public site: keep the last ALERT_KEEP_DAYS (dedupe needs only 6 h of them)
+        cur.execute("DELETE FROM alerts WHERE created_at < now() - make_interval(days => %s)", (int(os.getenv("ALERT_KEEP_DAYS", "7")),))
+        print("pruned", cur.rowcount, "old alerts")
         cur.execute("SELECT setval(pg_get_serial_sequence('thermal_runs', 'id'), COALESCE((SELECT max(id) FROM thermal_runs), 1))")
     live.mkdir(parents=True, exist_ok=True)
     for name in LIVE_FILES:

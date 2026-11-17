@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { API_BASE, postAlertDecision } from '@/services/api';
+import { STATIC_DATA } from '@/services/staticApi';
 import { alertRow, decisionHint, DECISION_LABEL, SEVERITY_COLOR, STATUS_LABEL } from '@/components/alertView';
 import type { AlertsState } from '@/hooks/useAlerts';
 import { useAuth } from '@/hooks/useAuth';
@@ -78,10 +79,10 @@ function Detail({ a, enabled, demo, onLocate, onDone }: { a: ThermalAlert; enabl
   return (
     <div data-testid="alert-detail">
       <p style={{ margin: '0 0 4px', fontSize: 13, color: '#334155' }}>{a.summary}</p>
-      <p style={{ margin: '0 0 6px', fontSize: 12, color: '#64748b' }}>Delivery: {row.channels}</p>
+      {!STATIC_DATA && <p style={{ margin: '0 0 6px', fontSize: 12, color: '#64748b' }}>Delivery: {row.channels}</p>}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <button onClick={() => onLocate(a)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', fontSize: 12, cursor: 'pointer' }}>
-          Show on map + satellite imagery
+          {STATIC_DATA ? 'Show on map' : 'Show on map + satellite imagery'}
         </button>
         {auth.can('analyst') && <a data-testid="report-link" href={`${API_BASE}/alerts/${a.alert_id}/report.pdf`} download
           style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #0f172a', background: '#0f172a', color: '#fff', fontSize: 12, textDecoration: 'none', fontWeight: 600 }}>
@@ -117,7 +118,9 @@ export function AlertInbox({ alerts, open, onClose, onLocate }: {
         <button aria-label="Close inbox" onClick={onClose} style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>×</button>
       </div>
       <div style={{ padding: '6px 14px', fontSize: 12, color: '#64748b' }}>
-        {alerts.available
+        {STATIC_DATA
+          ? 'Alerts from the last 7 days. This public site is read-only: decisions, delivery and reports are in the full app.'
+          : alerts.available
           ? `Delivery channels: ${alerts.channels.length ? alerts.channels.join(', ') : 'none configured'}`
           : 'Alerts need the PostGIS stack (not available in this mode).'}
         {alerts.error ? <span style={{ color: '#b91c1c' }}> · {alerts.error}</span> : null}

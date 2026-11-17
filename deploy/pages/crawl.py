@@ -18,6 +18,12 @@ FILES = {
     "dashboard.json": "/dashboard", "alerts.json": "/alerts", "statistics.json": "/statistics", "filter_options.json": "/filters/options",
 }
 
+# properties the map, filters, cards, alert badge and 3D globe read (industrial-gis/frontend/src: MapView, thermalDensity,
+# ThermalCards, globeData, staticApi.filterSources); everything else is fetched from sources_detail.json when a source is opened
+LIST_FIELDS = ["source_id", "thermal_class", "thermal_label", "class_confidence", "frp_max", "frp_mean", "frp_total", "alert_level",
+               "alert_text", "first_seen", "last_seen", "n_days", "n_detections", "site_name", "site_kind", "site_within", "state",
+               "baseline_scope", "baseline_known"]
+
 
 def main(out: Path, api: str) -> int:
     out.mkdir(parents=True, exist_ok=True)
@@ -45,7 +51,11 @@ def main(out: Path, api: str) -> int:
         if not page["features"] or not page.get("meta", {}).get("truncated"):
             page["features"], page["meta"] = features, {**page.get("meta", {}), "returned": len(features), "offset": 0, "truncated": False}
             (out / "thermal").mkdir(exist_ok=True)
-            (out / "thermal" / "sources.json").write_text(json.dumps(page), encoding="utf-8")
+            # the detail panel needs every field; the map, filters, cards and globe only these, so the first load stays small
+            (out / "thermal" / "sources_detail.json").write_text(json.dumps(page, separators=(",", ":")), encoding="utf-8")
+            slim = {**page, "features": [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [round(c, 5) for c in f["geometry"]["coordinates"]]},
+                                          "properties": {k: f["properties"].get(k) for k in LIST_FIELDS}} for f in features]}
+            (out / "thermal" / "sources.json").write_text(json.dumps(slim, separators=(",", ":")), encoding="utf-8")
             print(f"thermal/sources.json         {len(features)} sources")
             break
     # one file per alert for the inbox detail view

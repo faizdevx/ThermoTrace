@@ -54,7 +54,8 @@ export async function staticRequest<T>(path: string): Promise<T> {
 
   if (route === '/thermal/sources') return filterSources(await load('thermal/sources.json'), q) as T;
   if ((m = route.match(/^\/thermal\/sources\/([^/]+)$/))) {
-    const fc = await load<FeatureCollection<ThermalFeature>>('thermal/sources.json');
+    // full records (all fields) live in a separate file, loaded the first time a source is opened
+    const fc = await load<FeatureCollection<ThermalFeature>>('thermal/sources_detail.json');
     const hit = fc.features.find(f => f.properties.source_id === decodeURIComponent(m![1]));
     if (!hit) throw new StaticMiss(`source ${m[1]} not in the snapshot`);
     return hit as T;

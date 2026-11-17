@@ -491,3 +491,34 @@ See `.env.example`. Key variables: `POSTGRES_*`, `ALLOWED_ORIGINS`, `ADMIN_TOKEN
 ## Licence and attribution
 
 Code: see `LICENSE`. Data: © OpenStreetMap contributors (ODbL 1.0); NASA FIRMS / LANCE; ESA WorldCover 2021 © ESA, CC BY 4.0; geoBoundaries CC BY 4.0; basemap tiles © OpenStreetMap contributors.
+
+## Live website
+
+**https://faizdevx.github.io/ThermoTrace/** - public, free, read-only. Anyone with the link can open it; no account, no install.
+
+### What it shows
+
+| Tab / control | What you see |
+|---|---|
+| **Map** | Every heat source NASA's VIIRS satellites saw over India in the last ~2 weeks, coloured by class: red = persistent industrial heat, orange = possible industrial fire, purple = persistent heat with no mapped facility; crop and forest fires appear as a faint density grid when zoomed out and as dots from zoom 8. The cards on top count sources, open alerts, industrial classes, new heat and the 12,762 mapped facilities. |
+| **Thermal panel** (left) | Turn classes on and off, pick the time window (24 h / 3 days / all), set a minimum fire power, or show alerts only. The badge shows how old the newest detection is (`live` / `delayed`). |
+| **Search box** | Type a plant, mine or refinery name and pick it: the map flies there. Press `/` to jump to it, `?` for the quick guide. |
+| **Alerts** (red button) | Abnormal heat at industrial sites: a likely industrial fire, or heat far above the site's own 365-day baseline (for example "+12.6 sd vs own baseline"). Open one for the reasons in words and its timeline. |
+| **Click a dot** | Class and confidence, nearest facility, the trained model's second opinion, comparison with the site's own history, land cover. |
+| **3D Globe** | The same sources as columns whose height grows with fire power, on NASA satellite imagery (daily true colour, night lights, Blue Marble) with terrain relief. |
+| **Dashboard** | Alerts today, source totals, industrial share, class mix over time, top states, and the model card with its accuracy and caveats. |
+
+### How it stays up to date
+
+There is no server. A scheduled GitHub Actions job (`.github/workflows/pages.yml`) does the work every 20 minutes (at :07, :27 and :47 past each hour):
+
+1. starts a temporary PostGIS database and loads the saved state (facilities, boundaries, the 365-day baseline, current sources, alerts) from the `pages-state` branch;
+2. downloads the newest NASA FIRMS VIIRS detections, clusters them, matches them to facilities, classifies them and runs the alert rules - the same code as the full app;
+3. saves the updated state back to `pages-state`;
+4. asks the real API for every view, saves the answers as JSON files and publishes them with the app on GitHub Pages.
+
+An open page reloads the data every 5 minutes; reloading the page shows the newest run at once. NASA publishes detections about 3 hours after the satellite pass, so a fire appears on the site roughly 3-4 hours after it was seen from space. If FIRMS is unreachable, the site keeps the last data and the age badge says how old it is.
+
+### What the live site does not do
+
+It is a read-only snapshot: no sign-in, no Confirm / Reject decisions, no downloads or PDF reports, no on-demand Sentinel-2 / Landsat imagery checks, no district outlines and no OSM pilot layer. Those need the full stack (`docker compose up -d`, see Quick start, or a VM: `docs/DEPLOY.md`, `docs/DEPLOY_ORACLE_FREE.md`). GitHub pauses scheduled jobs after 60 days without repository activity; if the site stops updating, re-enable the workflow in the Actions tab. Details: [docs/DEPLOY_PAGES.md](docs/DEPLOY_PAGES.md).

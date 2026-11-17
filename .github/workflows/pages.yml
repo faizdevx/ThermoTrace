@@ -7,6 +7,9 @@ on:
   schedule:
     - cron: "7,27,47 * * * *"     # off the hour: scheduled runs at :00 are the most delayed
   workflow_dispatch:
+  push:
+    branches: [main]           # republish when the app or pipeline changes
+    paths-ignore: ["docs/**", "**.md"]
 
 permissions:
   contents: write                  # push the pages-state branch

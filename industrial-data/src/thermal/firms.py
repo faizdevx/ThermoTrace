@@ -113,7 +113,8 @@ def fetch(cfg: FirmsConfig | None = None, session: requests.Session | None = Non
             logger.warning("FIRMS %s failed: %s (%s)", product, exc, shown)
     if not frames:
         raise FirmsUnavailable("; ".join(errors) or "no FIRMS products configured")
-    df = pd.concat(frames, ignore_index=True)
+    # an empty product (e.g. a satellite outage) would turn the numeric columns into object dtype in the concat
+    df = pd.concat([f for f in frames if len(f)] or frames[:1], ignore_index=True)
     w, s, e, n = INDIA_BBOX
     df = df[(df.longitude >= w) & (df.longitude <= e) & (df.latitude >= s) & (df.latitude <= n)]
     df.attrs["errors"] = errors

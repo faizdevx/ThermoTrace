@@ -64,6 +64,22 @@ def test_api_key_is_never_logged_in_urls(caplog):
     assert "SECRET123" not in caplog.text
 
 
+def test_an_empty_product_keeps_coordinates_numeric():
+    """A satellite with no rows (S-NPP outage, 2026-11-17) once turned longitude into object dtype and crashed the clip."""
+    hdr = "latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight\n"
+    row = "20.1,80.2,330.1,0.4,0.4,2026-11-17,0913,N20,VIIRS,n,2.0NRT,290.1,5.2,D\n"
+
+    class Resp:
+        def __init__(self, text): self.text, self.headers = text, {}
+        def raise_for_status(self): pass
+
+    class Http:
+        def get(self, url, **k):
+            return Resp(hdr if "SNPP" in url or "suomi" in url.lower() else hdr + row)
+    df = firms.fetch(firms.FirmsConfig(products=("VIIRS_SNPP_NRT", "VIIRS_NOAA20_NRT")), Http())
+    assert len(df) == 1 and df.longitude.dtype.kind == "f" and df.latitude.dtype.kind == "f"
+
+
 # ── clustering / features ─────────────────────────────────────────────────────
 def test_close_detections_merge_far_ones_do_not():
     det = det_rows([(23.80, 86.40), (23.804, 86.404), (24.5, 87.0)], [2, 3])

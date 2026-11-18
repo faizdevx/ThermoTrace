@@ -109,8 +109,10 @@ def fetch(cfg: FirmsConfig | None = None, session: requests.Session | None = Non
                 published.append(parsedate_to_datetime(lm))
             logger.info("FIRMS %s: %d rows", product, len(frames[-1]))
         except (requests.RequestException, FirmsUnavailable) as exc:
-            errors.append(f"{product}: {exc}")
-            logger.warning("FIRMS %s failed: %s (%s)", product, exc, shown)
+            # requests puts the full URL (with the MAP_KEY) into its messages; errors end up in status.json
+            msg = str(exc).replace(cfg.map_key, "***") if cfg.map_key else str(exc)
+            errors.append(f"{product}: {msg}")
+            logger.warning("FIRMS %s failed: %s (%s)", product, msg, shown)
     if not frames:
         raise FirmsUnavailable("; ".join(errors) or "no FIRMS products configured")
     # an empty product (e.g. a satellite outage) would turn the numeric columns into object dtype in the concat

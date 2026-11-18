@@ -64,6 +64,24 @@ def test_api_key_is_never_logged_in_urls(caplog):
     assert "SECRET123" not in caplog.text
 
 
+def test_api_key_never_reaches_stored_errors():
+    """requests error messages carry the URL; the errors list is written to status.json (public on the Pages site)."""
+    cfg = firms.FirmsConfig(map_key="SECRET123", products=("VIIRS_SNPP_NRT", "VIIRS_NOAA20_NRT"))
+    hdr = "latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight\n"
+
+    class Resp:
+        def __init__(self, text): self.text, self.headers = text, {}
+        def raise_for_status(self): pass
+
+    class Half:
+        def get(self, url, **k):
+            if "VIIRS_SNPP" in url:
+                raise firms.requests.HTTPError(f"500 Server Error for url: {url}")
+            return Resp(hdr + "20.1,80.2,330.1,0.4,0.4,2026-11-17,0913,N20,VIIRS,n,2.0NRT,290.1,5.2,D\n")
+    df = firms.fetch(cfg, Half())
+    assert df.attrs["errors"] and not any("SECRET123" in e for e in df.attrs["errors"])
+
+
 def test_an_empty_product_keeps_coordinates_numeric():
     """A satellite with no rows (S-NPP outage, 2026-11-17) once turned longitude into object dtype and crashed the clip."""
     hdr = "latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_ti5,frp,daynight\n"

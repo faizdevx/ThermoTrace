@@ -76,6 +76,21 @@ export and report auditing, user administration and last-admin rule, session end
 sign-in rate limit, proxy trust, `off` mode unchanged), 6 unit tests, 8 frontend tests. Run live on the local production stack: 401 without a
 session, sign-in with a secure cookie, 403 for CSRF-less writes and for role violations, an audited export, an intact chain.
 
+## Review of 2026-11-18 (public site, supply chain, dependencies)
+
+Fixed:
+
+* **Map tooltips escaped.** Leaflet renders tooltip strings as HTML; facility, site, class and boundary names (from OSM / WRI / geoBoundaries) are now escaped (`MapView.tsx`). Popups already used `textContent`.
+* **Content-Security-Policy** on production builds (`vite.config.ts`, `<meta>`; GitHub Pages cannot send headers): scripts only from the site itself, no inline scripts or event handlers, no plugins. The dev server listens on `localhost` unless `VITE_HOST` is set.
+* **Live-site workflow split by trust** (`.github/workflows/pages.yml`): the job that installs PyPI / npm packages has a read-only token; pushing the `pages-state` branch and deploying Pages happen in separate jobs that run only GitHub's own actions and git. All actions in both workflows are pinned to commit SHAs. A compromised package can still alter the published data, not the code.
+* **FIRMS key redacted** from stored fetch errors (`firms.py`); they end up in `status.json` and on the public `pages-state` branch.
+* **Dependencies:** FastAPI 0.162.0 / Starlette 1.10.0 (16 Starlette advisories), python-dotenv 1.2.4, pytest 9.2.0, maplibre-gl 6.16.0 (GHSA-jrc7-96c5-q579), Vite 7.3.7, Vitest 5.1.0. `pip-audit` on all three requirement files: no known vulnerabilities.
+
+Accepted:
+
+* `picomatch` <= 4.0.7 ReDoS (dev tooling only: Vite, Vitest, Tailwind file watching on our own glob patterns); no fixed release exists yet.
+* The cron-job.org job holds a fine-grained token (ThermoTrace only, Actions read/write, expires 2027-02-16). Leaked, it can start or cancel workflow runs, not change code. Revoke it under GitHub > Settings > Developer settings if the job is removed.
+
 ## Not done / limits
 
 * No real identity provider was available: the proxy mode is tested with simulated headers only.

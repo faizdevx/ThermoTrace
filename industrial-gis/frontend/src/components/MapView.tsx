@@ -288,7 +288,7 @@ export function MapView({
       const rect = L.rectangle([[c.south, c.west], [c.south + c.size, c.west + c.size]], {
         pane: 'density', stroke: false, fillColor: thermalColors[cls] ?? '#64748b', fillOpacity: cellOpacity(c.count, maxCount), interactive: true,
       });
-      rect.bindTooltip(`${c.count} thermal source${c.count > 1 ? 's' : ''} (mostly ${cls.replace(/_/g, ' ')}), up to ${c.maxFrp.toFixed(0)} MW - zoom in for the points`, { sticky: true });
+      rect.bindTooltip(escapeHtml(`${c.count} thermal source${c.count > 1 ? 's' : ''} (mostly ${cls.replace(/_/g, ' ')}), up to ${c.maxFrp.toFixed(0)} MW - zoom in for the points`), { sticky: true });
       rect.on('click', () => map.setView([c.south + c.size / 2, c.west + c.size / 2], DENSITY_ZOOM, { animate: true }));
       density?.addLayer(rect);
     }
@@ -313,7 +313,8 @@ export function MapView({
         weight: p.alert_level ? 3 : 1, fillColor: color, fillOpacity: 0.75,
       });
       marker.bindTooltip(
-        `${p.thermal_label} - ${p.frp_max.toFixed(1)} MW max, ${p.n_days} day(s)${p.site_within && p.site_name ? ` - ${p.site_name}` : ''}`,
+        // Leaflet tooltips are HTML: names come from OSM/WRI and are escaped
+        escapeHtml(`${p.thermal_label} - ${p.frp_max.toFixed(1)} MW max, ${p.n_days} day(s)${p.site_within && p.site_name ? ` - ${p.site_name}` : ''}`),
         { sticky: true });
       marker.on('click', () => onSelectThermalRef.current?.(p.source_id));
       layer.addLayer(marker);
@@ -343,8 +344,8 @@ export function MapView({
         renderer, pane: 'facilities', radius: multi ? 4 : 3, weight: 1, color: '#1e293b',
         fillColor: multi ? '#0ea5e9' : '#94a3b8', fillOpacity: 0.85,
       }).bindTooltip(
-        `${p.name ?? 'Unnamed facility'} - ${p.kind.replace(/_/g, ' ')}${p.capacity_mw ? ` - ${Math.round(p.capacity_mw)} MW` : ''}`
-        + ` | sources: ${p.sources.split(',').join(', ')}`,
+        escapeHtml(`${p.name ?? 'Unnamed facility'} - ${p.kind.replace(/_/g, ' ')}${p.capacity_mw ? ` - ${Math.round(p.capacity_mw)} MW` : ''}`
+        + ` | sources: ${p.sources.split(',').join(', ')}`),
       );
       marker.on('click', () => {
         fetchFacility(p.facility_id, controller.signal).then(detail => {
@@ -442,7 +443,7 @@ export function MapView({
         style: { color: '#7c3aed', weight: 1, fill: false, opacity: 0.6, dashArray: '4 3' },
         onEachFeature: (feature, layer) => {
           const name = (feature.properties as { name?: string })?.name;
-          if (name) layer.bindTooltip(name, { sticky: true });
+          if (name) layer.bindTooltip(escapeHtml(name), { sticky: true });
         },
       }).addTo(map);
     }

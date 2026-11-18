@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
+// maplibre 6 loads its worker from a sibling file next to its own module; bundled, that file must be emitted explicitly
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { BoundaryFeature, FacilityCollection, FeatureCollection, ThermalClassInfo, ThermalFeature } from '@/types/industrial';
 import { basemapConfig } from '@/components/basemap';
@@ -17,6 +19,8 @@ interface Props {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
 }
+
+maplibregl.setWorkerUrl(workerUrl);
 
 const EMPTY = { type: 'FeatureCollection', features: [] } as const;
 const ATTR = 'Imagery: NASA GIBS · Terrain: Mapzen/AWS · Fire data: NASA FIRMS';
@@ -46,10 +50,10 @@ export function GlobeView({ thermal, classes, facilities, states, selectedId, on
   const [failed, setFailed] = useState<string | null>(null);
 
   const [open, setOpen] = useState(!narrow);
-  const [base, setBase] = useState<GlobeBase>('truecolor');
+  const [base, setBase] = useState<GlobeBase>('bluemarble')   // always available; the daily layer can lag a day;
   const [date, setDate] = useState(() => isoDay(1));
   const [globe, setGlobe] = useState(true);
-  const [terrain, setTerrain] = useState(true);
+  const [terrain, setTerrain] = useState(false);   // opt-in: terrain on the zoomed-out globe can start black
   const [exaggeration, setExaggeration] = useState(2);
   const [scale, setScale] = useState(1.5);
   const [pitch, setPitch] = useState(45);
@@ -89,8 +93,8 @@ export function GlobeView({ thermal, classes, facilities, states, selectedId, on
           },
           layers: [
             { id: 'space', type: 'background', paint: { 'background-color': '#020617' } },
-            { id: 'bluemarble', type: 'raster', source: 'bluemarble', layout: vis(false) },
-            { id: 'truecolor', type: 'raster', source: 'truecolor', layout: vis(true) },
+            { id: 'bluemarble', type: 'raster', source: 'bluemarble', layout: vis(true) },
+            { id: 'truecolor', type: 'raster', source: 'truecolor', layout: vis(false) },
             { id: 'night', type: 'raster', source: 'night', layout: vis(false) },
             { id: 'streets', type: 'raster', source: 'streets', layout: vis(false) },
             { id: 'hillshade', type: 'hillshade', source: 'dem', paint: { 'hillshade-exaggeration': 0.35, 'hillshade-shadow-color': '#0f172a' } },

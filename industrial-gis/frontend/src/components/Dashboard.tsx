@@ -119,7 +119,7 @@ export function Dashboard({ onOpenInbox }: { onOpenInbox?: () => void }) {
         </div>
         <Stat label="Thermal sources" value={data.totals.sources.toLocaleString()} sub={`${data.totals.detections.toLocaleString()} VIIRS detections`} />
         <Stat label="Industrial heat" value={ind.toLocaleString()} sub={`${((ind / Math.max(data.totals.sources, 1)) * 100).toFixed(0)}% of sources; crop burning is ${crop.toLocaleString()}`} tone="#b91c1c" />
-        <Stat label="Newest detection" value={data.totals.newest_detection ? new Date(data.totals.newest_detection).toISOString().slice(0, 10) : 'n/a'} sub={data.totals.newest_detection ? new Date(data.totals.newest_detection).toISOString().slice(11, 16) + ' UTC' : undefined} />
+        <Stat label="Newest detection" value={data.totals.newest_detection ? new Date(data.totals.newest_detection).toISOString().slice(0, 10) : 'n/a'} sub={`${data.totals.newest_detection ? new Date(data.totals.newest_detection).toISOString().slice(11, 16) + ' UTC · ' : ''}checked ${new Date(data.generated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`} />
       </div>
       <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
         <div style={card}><p style={h}>Class mix over time</p><ClassMix data={data} /></div>
